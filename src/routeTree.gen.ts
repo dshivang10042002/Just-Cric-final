@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PlayersPlayerIdRouteImport } from './routes/players.$playerId'
 import { Route as MatchMatchIdRouteImport } from './routes/match.$matchId'
+import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as AuthenticatedTournamentsRouteImport } from './routes/_authenticated/tournaments'
 import { Route as AuthenticatedTeamsRouteImport } from './routes/_authenticated/teams'
 import { Route as AuthenticatedSearchRouteImport } from './routes/_authenticated/search'
@@ -57,6 +58,11 @@ const MatchMatchIdRoute = MatchMatchIdRouteImport.update({
   id: '/match/$matchId',
   path: '/match/$matchId',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/callback',
+  path: '/callback',
+  getParentRoute: () => AuthRoute,
 } as any)
 const AuthenticatedTournamentsRoute =
   AuthenticatedTournamentsRouteImport.update({
@@ -164,7 +170,7 @@ const AuthenticatedMatchesMatchIdScoreRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/feed': typeof AuthenticatedFeedRoute
   '/join-team': typeof AuthenticatedJoinTeamRoute
@@ -175,6 +181,7 @@ export interface FileRoutesByFullPath {
   '/search': typeof AuthenticatedSearchRoute
   '/teams': typeof AuthenticatedTeamsRouteWithChildren
   '/tournaments': typeof AuthenticatedTournamentsRouteWithChildren
+  '/auth/callback': typeof AuthCallbackRoute
   '/match/$matchId': typeof MatchMatchIdRoute
   '/players/$playerId': typeof PlayersPlayerIdRoute
   '/matches/new': typeof AuthenticatedMatchesNewRoute
@@ -189,7 +196,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/feed': typeof AuthenticatedFeedRoute
   '/join-team': typeof AuthenticatedJoinTeamRoute
@@ -197,6 +204,7 @@ export interface FileRoutesByTo {
   '/profile': typeof AuthenticatedProfileRoute
   '/rankings': typeof AuthenticatedRankingsRoute
   '/search': typeof AuthenticatedSearchRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/match/$matchId': typeof MatchMatchIdRoute
   '/players/$playerId': typeof PlayersPlayerIdRoute
   '/matches/new': typeof AuthenticatedMatchesNewRoute
@@ -213,7 +221,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/feed': typeof AuthenticatedFeedRoute
   '/_authenticated/join-team': typeof AuthenticatedJoinTeamRoute
@@ -224,6 +232,7 @@ export interface FileRoutesById {
   '/_authenticated/search': typeof AuthenticatedSearchRoute
   '/_authenticated/teams': typeof AuthenticatedTeamsRouteWithChildren
   '/_authenticated/tournaments': typeof AuthenticatedTournamentsRouteWithChildren
+  '/auth/callback': typeof AuthCallbackRoute
   '/match/$matchId': typeof MatchMatchIdRoute
   '/players/$playerId': typeof PlayersPlayerIdRoute
   '/_authenticated/matches/new': typeof AuthenticatedMatchesNewRoute
@@ -251,6 +260,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/teams'
     | '/tournaments'
+    | '/auth/callback'
     | '/match/$matchId'
     | '/players/$playerId'
     | '/matches/new'
@@ -273,6 +283,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/rankings'
     | '/search'
+    | '/auth/callback'
     | '/match/$matchId'
     | '/players/$playerId'
     | '/matches/new'
@@ -299,6 +310,7 @@ export interface FileRouteTypes {
     | '/_authenticated/search'
     | '/_authenticated/teams'
     | '/_authenticated/tournaments'
+    | '/auth/callback'
     | '/match/$matchId'
     | '/players/$playerId'
     | '/_authenticated/matches/new'
@@ -315,7 +327,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
-  AuthRoute: typeof AuthRoute
+  AuthRoute: typeof AuthRouteWithChildren
   MatchMatchIdRoute: typeof MatchMatchIdRoute
   PlayersPlayerIdRoute: typeof PlayersPlayerIdRoute
 }
@@ -356,6 +368,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/match/$matchId'
       preLoaderRoute: typeof MatchMatchIdRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/auth/callback': {
+      id: '/auth/callback'
+      path: '/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
+      parentRoute: typeof AuthRoute
     }
     '/_authenticated/tournaments': {
       id: '/_authenticated/tournaments'
@@ -571,10 +590,20 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
+interface AuthRouteChildren {
+  AuthCallbackRoute: typeof AuthCallbackRoute
+}
+
+const AuthRouteChildren: AuthRouteChildren = {
+  AuthCallbackRoute: AuthCallbackRoute,
+}
+
+const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
-  AuthRoute: AuthRoute,
+  AuthRoute: AuthRouteWithChildren,
   MatchMatchIdRoute: MatchMatchIdRoute,
   PlayersPlayerIdRoute: PlayersPlayerIdRoute,
 }

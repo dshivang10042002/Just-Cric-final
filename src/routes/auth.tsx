@@ -3,12 +3,11 @@ import { useEffect, useState } from "react";
 import { z } from "zod";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable";
-
+ 
 const searchSchema = z.object({
   mode: z.enum(["login", "register"]).default("login"),
 });
-
+ 
 export const Route = createFileRoute("/auth")({
   ssr: false,
   validateSearch: searchSchema,
@@ -20,12 +19,12 @@ export const Route = createFileRoute("/auth")({
   }),
   component: AuthPage,
 });
-
+ 
 function AuthPage() {
   const { mode } = useSearch({ from: "/auth" });
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-
+ 
   // form state
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -33,17 +32,17 @@ function AuthPage() {
   const [username, setUsername] = useState("");
   const [city, setCity] = useState("");
   const [role, setRole] = useState("batsman");
-
+ 
   // already signed in? bounce to dashboard
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (data.user) navigate({ to: "/dashboard" });
     });
   }, [navigate]);
-
+ 
   const setMode = (m: "login" | "register") =>
     navigate({ to: "/auth", search: { mode: m }, replace: true });
-
+ 
   const handleEmail = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -72,21 +71,22 @@ function AuthPage() {
       setLoading(false);
     }
   };
-
+ 
   const handleGoogle = async () => {
     setLoading(true);
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin + "/dashboard",
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
     });
-    if (result.error) {
-      toast.error(result.error.message ?? "Google sign-in failed");
+    if (error) {
+      toast.error(error.message ?? "Google sign-in failed");
       setLoading(false);
-      return;
     }
-    if (result.redirected) return;
-    navigate({ to: "/dashboard" });
+    // On success Supabase redirects the browser — no further action needed
   };
-
+ 
   return (
     <div className="dark relative min-h-screen overflow-hidden bg-background text-foreground">
       {/* Atmospheric background layers */}
@@ -95,7 +95,7 @@ function AuthPage() {
         <div className="absolute -top-40 left-1/2 h-[500px] w-[800px] -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-background/80" />
       </div>
-
+ 
       {/* Wordmark header — auth flows suppress full nav per "destination rule" */}
       <header className="fixed left-0 top-0 z-50 flex h-20 w-full items-center justify-center sm:h-24">
         <Link to="/">
@@ -104,7 +104,7 @@ function AuthPage() {
           </h1>
         </Link>
       </header>
-
+ 
       <main className="relative z-10 flex min-h-screen flex-col items-center justify-center px-5 py-28 sm:px-12 sm:py-32">
         <div className="w-full max-w-[480px] space-y-10">
           <div className="space-y-4 text-center">
@@ -117,7 +117,7 @@ function AuthPage() {
                 : "Create your account and score your first match in minutes."}
             </p>
           </div>
-
+ 
           {/* Tabs */}
           <div className="relative flex justify-center border-b border-border/40">
             <button
@@ -141,7 +141,7 @@ function AuthPage() {
               Register
             </button>
           </div>
-
+ 
           {/* Form */}
           <form onSubmit={handleEmail} className="space-y-8">
             <div className="space-y-6">
@@ -177,7 +177,7 @@ function AuthPage() {
                 minLength={6}
               />
             </div>
-
+ 
             {mode === "login" && (
               <div className="label-caps flex items-center justify-between">
                 <label className="group flex cursor-pointer items-center gap-3">
@@ -194,7 +194,7 @@ function AuthPage() {
                 </a>
               </div>
             )}
-
+ 
             <button
               type="submit"
               disabled={loading}
@@ -203,7 +203,7 @@ function AuthPage() {
               {loading ? "Please wait…" : mode === "login" ? "Authorize Entry" : "Create Account"}
             </button>
           </form>
-
+ 
           {/* Social */}
           <div className="space-y-6">
             <div className="flex items-center gap-4">
@@ -232,7 +232,7 @@ function AuthPage() {
             </div>
           </div>
         </div>
-
+ 
         {/* Authority counters */}
         <div className="mt-20 grid w-full max-w-4xl grid-cols-1 gap-10 border-t border-border/20 pt-14 sm:mt-24 sm:grid-cols-3 sm:gap-12 sm:pt-16">
           <div className="group text-center">
@@ -254,12 +254,12 @@ function AuthPage() {
             <div className="label-caps text-muted-foreground">Scouting Accuracy</div>
           </div>
         </div>
-
+ 
         <Link to="/" className="mt-12 text-sm text-muted-foreground transition-colors hover:text-foreground">
           ← Back to home
         </Link>
       </main>
-
+ 
       <footer className="relative z-10 flex justify-center py-8">
         <div className="label-caps text-[10px] tracking-[0.3em] text-muted-foreground/40">
           © {new Date().getFullYear()} JustCric Elite Ecosystem · Precision Engineered
@@ -268,7 +268,7 @@ function AuthPage() {
     </div>
   );
 }
-
+ 
 function UnderlineField({
   label,
   value,
@@ -298,7 +298,7 @@ function UnderlineField({
     </div>
   );
 }
-
+ 
 function GoogleIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 48 48">
@@ -309,7 +309,7 @@ function GoogleIcon() {
     </svg>
   );
 }
-
+ 
 function AppleIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
