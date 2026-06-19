@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: justcric-score
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build:node
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: NITRO_PRESET
+        value: node-server
+      - key: PORT
+        value: 10000
+      # Set these in the Render dashboard (do not commit secrets):
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_PUBLISHABLE_KEY
+        sync: false

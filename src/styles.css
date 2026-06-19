@@ -1,0 +1,288 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* JustCric — "Gentleman's Game Reimagined" editorial design system.
+ * Light, airy, ultra-premium by default (Porcelain White / Deep Emerald / Champagne Gold).
+ * The auth screen alone opts into the dark "Arena" variant via the .dark class.
+ * Playfair Display for headlines, Hanken Grotesk for body/UI, Geist for auth data labels.
+ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ring-offset-background: var(--background);
+
+  --color-ticker: var(--ticker);
+  --color-live: var(--live);
+
+  /* Gold accent — premium signifiers, used alongside emerald primary */
+  --color-gold: var(--gold);
+  --color-gold-foreground: var(--gold-foreground);
+
+  --font-display: "Playfair Display", "Georgia", serif;
+  --font-sans: "Hanken Grotesk", "Inter", system-ui, sans-serif;
+  --font-mono: "Geist", "Inter", ui-monospace, sans-serif;
+}
+
+/* Light-first: tokens live on :root and represent the editorial light theme. */
+:root {
+  --radius: 0.5rem;
+
+  /* Porcelain White canvas */
+  --background: #fbf8ff;
+  --foreground: #1a1b22;
+
+  /* Card surfaces — pure white, hairline bordered */
+  --card: #ffffff;
+  --card-foreground: #1a1b22;
+  --popover: #ffffff;
+  --popover-foreground: #1a1b22;
+
+  /* Ticker bar — deep emerald, darker than canvas */
+  --ticker: #003527;
+
+  /* Deep Emerald — primary actions, nav, authoritative UI */
+  --primary: #003527;
+  --primary-foreground: #ffffff;
+
+  /* Champagne Gold — premium accents, highlights, achievement markers */
+  --accent: #fed65b;
+  --accent-foreground: #745c00;
+
+  --gold: #d4af37;
+  --gold-foreground: #3d2e00;
+
+  --secondary: #eeedf7;
+  --secondary-foreground: #1a1b22;
+
+  --muted: #f4f2fd;
+  --muted-foreground: #404944;
+
+  /* Live red */
+  --live: #ba1a1a;
+  --destructive: #ba1a1a;
+  --destructive-foreground: #ffffff;
+
+  --border: #e3e1ec;
+  --input: #e3e1ec;
+  --ring: #003527;
+}
+
+/* Dark "Arena" variant — reserved for the auth (sign in / register) screen. */
+.dark {
+  --background: #131411;
+  --foreground: #e5e2dd;
+  --card: #1c1c19;
+  --card-foreground: #e5e2dd;
+  --popover: #1c1c19;
+  --popover-foreground: #e5e2dd;
+
+  --ticker: #0e0e0c;
+
+  --primary: #a7cfc0;
+  --primary-foreground: #0f372c;
+
+  --accent: #e9c176;
+  --accent-foreground: #412d00;
+
+  --gold: #e9c176;
+  --gold-foreground: #412d00;
+
+  --secondary: #20201d;
+  --secondary-foreground: #e5e2dd;
+
+  --muted: #20201d;
+  --muted-foreground: #c1c8c4;
+
+  --live: #ffb4ab;
+  --destructive: #ffb4ab;
+  --destructive-foreground: #690005;
+
+  --border: #414845;
+  --input: #2a2a27;
+  --ring: #a7cfc0;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html,
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+  }
+
+  .input {
+    display: block;
+    width: 100%;
+    border-radius: 0.5rem;
+    border: 1px solid var(--color-border);
+    background-color: var(--color-card);
+    padding: 0.625rem 0.75rem;
+    font-size: 0.875rem;
+    color: var(--color-foreground);
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .input::placeholder { color: var(--color-muted-foreground); }
+  .input:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-primary) 18%, transparent);
+  }
+}
+
+/* ---------- Component utilities ---------- */
+
+@utility font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+@utility font-score {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+@utility label-caps {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+@utility shadow-elevate {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@utility glow-primary {
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--primary) 20%, transparent),
+    0 10px 30px -12px color-mix(in oklab, var(--primary) 35%, transparent);
+}
+
+@utility text-gradient-lime {
+  background: linear-gradient(135deg, #0b513d 0%, #003527 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@utility text-gradient-gold {
+  background: linear-gradient(135deg, #fed65b 0%, #d4af37 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ---------- Keyframes ---------- */
+
+@keyframes ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes live-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--live) 60%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 8px color-mix(in oklab, var(--live) 0%, transparent);
+  }
+}
+
+@keyframes live-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--primary) 30%, transparent),
+      0 0 30px -5px color-mix(in oklab, var(--primary) 40%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--primary) 60%, transparent),
+      0 0 50px -5px color-mix(in oklab, var(--primary) 70%, transparent);
+  }
+}
+
+@keyframes score-flip {
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(-8px);
+    opacity: 0;
+  }
+  51% {
+    transform: translateY(8px);
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@utility animate-ticker {
+  animation: ticker-scroll 45s linear infinite;
+}
+
+@utility animate-live-pulse {
+  animation: live-pulse 1.8s ease-out infinite;
+}
+
+@utility animate-live-glow {
+  animation: live-glow 2.4s ease-in-out infinite;
+}
+
+@utility animate-score-flip {
+  animation: score-flip 0.4s ease-out;
+}
