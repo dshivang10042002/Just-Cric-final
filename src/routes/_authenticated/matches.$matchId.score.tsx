@@ -3,12 +3,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Navbar } from "@/components/layout/Navbar";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Eye, Undo2, RefreshCw, Flag } from "lucide-react";
-
+import { ArrowLeft, Eye, Undo2, RefreshCw, Flag, Star } from "lucide-react";
+ 
 export const Route = createFileRoute("/_authenticated/matches/$matchId/score")({
   component: ScorePage,
 });
-
+ 
 type Match = {
   id: string;
   team_a_id: string;
@@ -50,9 +50,9 @@ type Ball = {
   wicket_type: string | null;
 };
 type Member = { id: string; player_name: string; jersey_number: number | null };
-
+ 
 type ExtraKind = "wide" | "noball" | "bye" | "legbye";
-
+ 
 function ScorePage() {
   const { matchId } = Route.useParams();
   const navigate = useNavigate();
@@ -64,7 +64,7 @@ function ScorePage() {
   const [extra, setExtra] = useState<ExtraKind | null>(null);
   const [busy, setBusy] = useState(false);
   const [breakDismissed, setBreakDismissed] = useState(false);
-
+ 
   const load = useCallback(async () => {
     const { data: m } = await supabase
       .from("matches")
@@ -109,26 +109,26 @@ function ScorePage() {
       setBowlingSquad((bowl as Member[]) ?? []);
     }
   }, [matchId]);
-
+ 
   useEffect(() => {
     load();
   }, [load]);
-
+ 
   const battingTeam =
     match && innings
       ? match.team_a.id === innings.batting_team_id
         ? match.team_a
         : match.team_b
       : null;
-
+ 
   const oversStr = innings
     ? `${Math.floor(innings.balls / 6)}.${innings.balls % 6}`
     : "0.0";
-
+ 
   const lastSix = [...balls].slice(0, 6).reverse();
-
+ 
   const totalAllowed = (match?.overs ?? 0) * 6;
-
+ 
   // batter/bowler stats
   const batterStats = useMemo(() => {
     if (!innings?.striker_id) return null;
@@ -150,7 +150,7 @@ function ScorePage() {
     });
     return { runs, faced, fours, sixes };
   }, [balls, innings?.striker_id]);
-
+ 
   const bowlerStats = useMemo(() => {
     if (!innings?.bowler_id) return null;
     const mine = balls.filter((b) => b.bowler_id === innings.bowler_id);
@@ -165,11 +165,11 @@ function ScorePage() {
     const overs = `${Math.floor(legal / 6)}.${legal % 6}`;
     return { runs, legal, overs, wkts };
   }, [balls, innings?.bowler_id]);
-
+ 
   const finishInnings = async (current: Innings) => {
     if (!match) return;
     await supabase.from("innings").update({ completed: true }).eq("id", current.id);
-
+ 
     if (current.innings_no === 1) {
       const { error } = await supabase.from("innings").insert({
         match_id: match.id,
@@ -218,7 +218,7 @@ function ScorePage() {
     }
     load();
   };
-
+ 
   const setPlayer = async (
     field: "striker_id" | "non_striker_id" | "bowler_id",
     value: string | null,
@@ -233,7 +233,7 @@ function ScorePage() {
     await supabase.from("innings").update(patch).eq("id", innings.id);
     setInnings({ ...innings, [field]: value });
   };
-
+ 
   const addBall = async (params: {
     runs: number;
     extra_type?: ExtraKind | null;
@@ -251,13 +251,13 @@ function ScorePage() {
     const totalRunsThisBall = params.runs + penalty;
     const isExtra = params.extra_type != null;
     const extrasAdd = isExtra ? totalRunsThisBall : 0;
-
+ 
     const nextBallIndex =
       balls.length > 0 ? Math.max(...balls.map((b) => b.ball_index)) + 1 : 1;
     const legalBefore = innings.balls;
     const over_number = Math.floor(legalBefore / 6);
     const ball_in_over = (legalBefore % 6) + 1;
-
+ 
     const { error: bErr } = await supabase.from("balls").insert({
       innings_id: innings.id,
       ball_index: nextBallIndex,
@@ -280,7 +280,7 @@ function ScorePage() {
     const newWickets = innings.wickets + (params.is_wicket ? 1 : 0);
     const newBalls = innings.balls + (isLegal ? 1 : 0);
     const newExtras = innings.extras + extrasAdd;
-
+ 
     // Rotate strike for odd runs (only off the bat, or byes/legbyes — not wides/noballs penalty alone)
     const batRuns = params.extra_type === "noball" ? params.runs : params.runs;
     const rotateForOdd = isLegal || params.extra_type === "bye" || params.extra_type === "legbye"
@@ -288,7 +288,7 @@ function ScorePage() {
       : params.extra_type === "noball" && params.runs % 2 === 1;
     // End-of-over swap
     const endOfOver = isLegal && newBalls > 0 && newBalls % 6 === 0;
-
+ 
     let newStriker: string | null = innings.striker_id;
     let newNonStriker: string | null = innings.non_striker_id;
     if (rotateForOdd) {
@@ -301,7 +301,7 @@ function ScorePage() {
     if (params.is_wicket) {
       newStriker = null;
     }
-
+ 
     const { error: iErr } = await supabase
       .from("innings")
       .update({
@@ -319,7 +319,7 @@ function ScorePage() {
     }
     setExtra(null);
     await load();
-
+ 
     const allOutAt = battingSquad.length > 1 ? battingSquad.length - 1 : 10;
     if (innings.innings_no === 2 && innings.target && newRuns >= innings.target) {
       await finishInnings({ ...innings, runs: newRuns, wickets: newWickets, balls: newBalls });
@@ -334,7 +334,7 @@ function ScorePage() {
     }
     setBusy(false);
   };
-
+ 
   const undo = async () => {
     if (!innings || balls.length === 0) return;
     setBusy(true);
@@ -357,7 +357,7 @@ function ScorePage() {
     await load();
     setBusy(false);
   };
-
+ 
   const endMatch = async () => {
     if (!match || !innings) return;
     const ok = window.confirm(
@@ -413,7 +413,7 @@ function ScorePage() {
     setBusy(false);
     await load();
   };
-
+ 
   if (!match) {
     return (
       <div className="min-h-screen bg-background">
@@ -424,26 +424,11 @@ function ScorePage() {
       </div>
     );
   }
-
+ 
   if (match.status === "completed") {
-    return (
-      <div className="min-h-screen bg-background">
-        <Navbar />
-        <main className="mx-auto max-w-2xl px-4 py-10 text-center sm:px-6">
-          <h1 className="font-display text-4xl">Match completed</h1>
-          <p className="mt-2 text-lg text-primary">{match.result_text}</p>
-          <Link
-            to="/match/$matchId"
-            params={{ matchId }}
-            className="mt-6 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
-          >
-            <Eye className="h-4 w-4" /> View scorecard
-          </Link>
-        </main>
-      </div>
-    );
+    return <CompletedScreen match={match} matchId={matchId} battingSquad={battingSquad} bowlingSquad={bowlingSquad} />;
   }
-
+ 
   if (!innings || !battingTeam) {
     return (
       <div className="min-h-screen bg-background">
@@ -452,7 +437,7 @@ function ScorePage() {
       </div>
     );
   }
-
+ 
   // Innings break: just rolled into innings 2 and no ball bowled yet
   if (
     innings.innings_no === 2 &&
@@ -480,7 +465,7 @@ function ScorePage() {
               finished on{" "}
               <span className="font-mono text-foreground">{firstInningsRuns}</span>
             </div>
-
+ 
             <div className="my-7 rounded-xl border border-primary/40 bg-primary/10 p-6">
               <div className="text-[11px] uppercase tracking-widest text-muted-foreground">
                 Target for {battingTeam.name}
@@ -496,7 +481,7 @@ function ScorePage() {
                 rpo required
               </div>
             </div>
-
+ 
             <button
               onClick={() => setBreakDismissed(true)}
               className="inline-flex w-full items-center justify-center rounded-md bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition active:scale-95 hover:brightness-110"
@@ -508,13 +493,13 @@ function ScorePage() {
       </div>
     );
   }
-
-
+ 
+ 
   const runBtns: number[] = [0, 1, 2, 3, 4, 6];
   const availableBatters = battingSquad.filter(
     (m) => m.id !== innings.striker_id && m.id !== innings.non_striker_id,
   );
-
+ 
   return (
     <div className="min-h-screen bg-background pb-10">
       <Navbar />
@@ -533,7 +518,7 @@ function ScorePage() {
             <Eye className="h-3.5 w-3.5" /> Public view
           </button>
         </div>
-
+ 
         {/* Scoreboard */}
         <section className="mt-4 rounded-2xl border border-border bg-card p-5 text-center">
           <div className="flex items-center justify-center gap-2">
@@ -567,7 +552,7 @@ function ScorePage() {
             </div>
           )}
         </section>
-
+ 
         {/* Players */}
         <section className="mt-4 grid gap-2 rounded-xl border border-border bg-card/60 p-3 sm:grid-cols-3">
           <PlayerSelect
@@ -592,7 +577,7 @@ function ScorePage() {
             stat={bowlerStats ? `${bowlerStats.overs}–${bowlerStats.runs}–${bowlerStats.wkts}` : undefined}
           />
         </section>
-
+ 
         {/* Quick swap */}
         {innings.striker_id && innings.non_striker_id && (
           <button
@@ -611,7 +596,7 @@ function ScorePage() {
             <RefreshCw className="h-3 w-3" /> Swap strike
           </button>
         )}
-
+ 
         {/* This over */}
         <div className="mt-4 flex items-center gap-2 overflow-x-auto rounded-xl border border-border bg-card/60 p-3">
           <span className="shrink-0 text-[11px] uppercase tracking-widest text-muted-foreground">
@@ -647,7 +632,7 @@ function ScorePage() {
             </span>
           ))}
         </div>
-
+ 
         {/* Extra toggles */}
         <div className="mt-4 grid grid-cols-4 gap-2">
           {(["wide", "noball", "bye", "legbye"] as ExtraKind[]).map((k) => {
@@ -674,7 +659,7 @@ function ScorePage() {
             );
           })}
         </div>
-
+ 
         {/* Runs */}
         <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
           {runBtns.map((r) => (
@@ -689,7 +674,7 @@ function ScorePage() {
             </button>
           ))}
         </div>
-
+ 
         <div className="mt-3 grid grid-cols-2 gap-2">
           <button
             disabled={busy}
@@ -710,7 +695,7 @@ function ScorePage() {
             <Undo2 className="h-5 w-5" /> UNDO
           </button>
         </div>
-
+ 
         {/* Next batter prompt */}
         {!innings.striker_id && availableBatters.length > 0 && (
           <div className="mt-3 rounded-xl border border-accent/40 bg-accent/10 p-3">
@@ -735,14 +720,14 @@ function ScorePage() {
             </div>
           </div>
         )}
-
+ 
         {extra && (
           <p className="mt-3 text-center text-xs text-muted-foreground">
             <span className="font-semibold text-accent">{extra}</span> selected — tap a run button
             to log the delivery
           </p>
         )}
-
+ 
         {/* End match */}
         <div className="mt-6 border-t border-border pt-4">
           <button
@@ -761,7 +746,7 @@ function ScorePage() {
     </div>
   );
 }
-
+ 
 function PlayerSelect({
   label,
   value,
@@ -801,5 +786,129 @@ function PlayerSelect({
         ))}
       </select>
     </label>
+  );
+}
+ 
+/* ---------- Completed screen with MOTM picker ---------- */
+function CompletedScreen({
+  match,
+  matchId,
+  battingSquad,
+  bowlingSquad,
+}: {
+  match: Match;
+  matchId: string;
+  battingSquad: Member[];
+  bowlingSquad: Member[];
+}) {
+  const [motmId, setMotmId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const allPlayers = [...battingSquad, ...bowlingSquad].filter(
+    (p, i, a) => a.findIndex((x) => x.id === p.id) === i,
+  );
+ 
+  // Load existing MOTM if already set
+  useEffect(() => {
+  supabase
+    .from("matches")
+    .select("motm_player_id")
+    .eq("id", matchId)
+    .maybeSingle()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .then(({ data }: { data: any }) => {
+      const id: string | null = data?.motm_player_id ?? null;
+      if (id) {
+        setMotmId(id);
+        setSaved(true);
+      }
+    });
+}, [matchId]);
+ 
+  const saveMotm = async () => {
+    if (!motmId) return;
+    setSaving(true);
+    await supabase
+      .from("matches")
+      .update({ motm_player_id: motmId } as never)
+      .eq("id", matchId);
+    setSaving(false);
+    setSaved(true);
+    toast.success("Man of the Match saved 🏆");
+  };
+ 
+  const motmPlayer = allPlayers.find((p) => p.id === motmId);
+ 
+  return (
+    <div className="min-h-screen bg-background">
+      <Navbar />
+      <main className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
+        <div className="rounded-2xl border border-primary/40 bg-primary/10 p-6 text-center">
+          <div className="text-[10px] uppercase tracking-widest text-primary">Match Result</div>
+          <h1 className="mt-1 font-display text-3xl text-primary">{match.result_text}</h1>
+        </div>
+ 
+        {/* MOTM picker */}
+        <div className="mt-6 rounded-xl border border-border bg-card p-5">
+          <div className="flex items-center gap-2 font-display text-xl">
+            <Star className="h-5 w-5 text-yellow-400 fill-yellow-400" />
+            Man of the Match
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Select the standout performer of this match.
+          </p>
+ 
+          {saved && motmPlayer ? (
+            <div className="mt-4 flex items-center gap-3 rounded-xl border border-yellow-400/40 bg-yellow-400/10 p-4">
+              <div className="grid h-12 w-12 place-items-center rounded-full bg-yellow-400/20 text-yellow-500 font-display text-lg">
+                {motmPlayer.player_name.slice(0, 1)}
+              </div>
+              <div>
+                <div className="font-display text-lg">{motmPlayer.player_name}</div>
+                <div className="text-xs text-muted-foreground">Man of the Match 🏆</div>
+              </div>
+              <button
+                onClick={() => setSaved(false)}
+                className="ml-auto text-xs text-muted-foreground underline"
+              >
+                Change
+              </button>
+            </div>
+          ) : (
+            <div className="mt-4 space-y-3">
+              <select
+                value={motmId ?? ""}
+                onChange={(e) => setMotmId(e.target.value || null)}
+                className="input w-full"
+              >
+                <option value="">Select a player…</option>
+                {allPlayers.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.player_name}
+                    {p.jersey_number != null ? ` (#${p.jersey_number})` : ""}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={saveMotm}
+                disabled={!motmId || saving}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:brightness-110 disabled:opacity-50"
+              >
+                <Star className="h-4 w-4" />
+                {saving ? "Saving…" : "Save Man of the Match"}
+              </button>
+            </div>
+          )}
+        </div>
+ 
+        <Link
+          to="/match/$matchId"
+          params={{ matchId }}
+          className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-md border border-border bg-card px-4 py-2.5 text-sm font-semibold transition hover:border-primary/40"
+        >
+          <Eye className="h-4 w-4" /> View full scorecard
+        </Link>
+      </main>
+    </div>
   );
 }
