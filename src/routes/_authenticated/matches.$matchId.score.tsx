@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Navbar } from "@/components/layout/Navbar";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Eye, Undo2, RefreshCw, Flag, Star } from "lucide-react";
+import { ArrowLeft, Eye, Undo2, RefreshCw, Flag } from "lucide-react";
  
 export const Route = createFileRoute("/_authenticated/matches/$matchId/score")({
   component: ScorePage,
@@ -125,7 +125,9 @@ function ScorePage() {
     ? `${Math.floor(innings.balls / 6)}.${innings.balls % 6}`
     : "0.0";
  
-  const lastSix = [...balls].slice(0, 6).reverse();
+  // Balls of the current ongoing over only
+  const currentOverNumber = innings ? Math.floor(innings.balls / 6) : 0;
+  const currentOverBalls = [...balls].reverse().filter((b) => b.over_number === currentOverNumber);
  
   const totalAllowed = (match?.overs ?? 0) * 6;
  
@@ -426,7 +428,22 @@ function ScorePage() {
   }
  
   if (match.status === "completed") {
-    return <CompletedScreen match={match} matchId={matchId} battingSquad={battingSquad} bowlingSquad={bowlingSquad} />;
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <main className="mx-auto max-w-2xl px-4 py-10 text-center sm:px-6">
+          <h1 className="font-display text-4xl">Match completed</h1>
+          <p className="mt-2 text-lg text-primary">{match.result_text}</p>
+          <Link
+            to="/match/$matchId"
+            params={{ matchId }}
+            className="mt-6 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+          >
+            <Eye className="h-4 w-4" /> View scorecard
+          </Link>
+        </main>
+      </div>
+    );
   }
  
   if (!innings || !battingTeam) {
@@ -533,7 +550,7 @@ function ScorePage() {
               ● LIVE
             </span>
           </div>
-          <div className="mt-3 font-display text-7xl leading-none text-primary tabular-nums">
+          <div className="mt-3 font-display text-6xl sm:text-7xl leading-none text-primary tabular-nums">
             {innings.runs}
             <span className="text-muted-foreground">/</span>
             {innings.wickets}
@@ -600,12 +617,12 @@ function ScorePage() {
         {/* This over */}
         <div className="mt-4 flex items-center gap-2 overflow-x-auto rounded-xl border border-border bg-card/60 p-3">
           <span className="shrink-0 text-[11px] uppercase tracking-widest text-muted-foreground">
-            Recent
+            This Over
           </span>
-          {lastSix.length === 0 && (
+          {currentOverBalls.length === 0 && (
             <span className="text-xs text-muted-foreground">No balls yet</span>
           )}
-          {lastSix.map((b) => (
+          {currentOverBalls.map((b) => (
             <span
               key={b.id}
               className={`grid h-9 w-9 shrink-0 place-items-center rounded-full font-mono text-sm ${
@@ -634,7 +651,7 @@ function ScorePage() {
         </div>
  
         {/* Extra toggles */}
-        <div className="mt-4 grid grid-cols-4 gap-2">
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
           {(["wide", "noball", "bye", "legbye"] as ExtraKind[]).map((k) => {
             const active = extra === k;
             const labels: Record<ExtraKind, string> = {
@@ -667,7 +684,7 @@ function ScorePage() {
               key={r}
               disabled={busy}
               onClick={() => addBall({ runs: r, extra_type: extra })}
-              className="h-20 rounded-xl border border-border bg-card font-display text-4xl tracking-wide text-foreground transition active:scale-95 hover:border-primary/40 hover:bg-primary/10 disabled:opacity-60"
+              className="h-16 sm:h-20 rounded-xl border border-border bg-card font-display text-3xl sm:text-4xl tracking-wide text-foreground transition active:scale-95 hover:border-primary/40 hover:bg-primary/10 disabled:opacity-60"
               style={{ minHeight: 56 }}
             >
               {r}
@@ -681,7 +698,7 @@ function ScorePage() {
             onClick={() =>
               addBall({ runs: 0, extra_type: extra, is_wicket: true, wicket_type: "bowled" })
             }
-            className="h-14 rounded-xl bg-destructive font-display text-2xl tracking-wide text-destructive-foreground transition active:scale-95 disabled:opacity-60"
+            className="h-12 sm:h-14 rounded-xl bg-destructive font-display text-xl sm:text-2xl tracking-wide text-destructive-foreground transition active:scale-95 disabled:opacity-60"
             style={{ minHeight: 56 }}
           >
             WICKET
@@ -689,7 +706,7 @@ function ScorePage() {
           <button
             disabled={busy || balls.length === 0}
             onClick={undo}
-            className="inline-flex h-14 items-center justify-center gap-2 rounded-xl border border-border bg-card font-display text-xl tracking-wide text-foreground transition active:scale-95 disabled:opacity-50"
+            className="inline-flex h-12 sm:h-14 items-center justify-center gap-2 rounded-xl border border-border bg-card font-display text-lg sm:text-xl tracking-wide text-foreground transition active:scale-95 disabled:opacity-50"
             style={{ minHeight: 56 }}
           >
             <Undo2 className="h-5 w-5" /> UNDO
@@ -786,129 +803,5 @@ function PlayerSelect({
         ))}
       </select>
     </label>
-  );
-}
- 
-/* ---------- Completed screen with MOTM picker ---------- */
-function CompletedScreen({
-  match,
-  matchId,
-  battingSquad,
-  bowlingSquad,
-}: {
-  match: Match;
-  matchId: string;
-  battingSquad: Member[];
-  bowlingSquad: Member[];
-}) {
-  const [motmId, setMotmId] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const allPlayers = [...battingSquad, ...bowlingSquad].filter(
-    (p, i, a) => a.findIndex((x) => x.id === p.id) === i,
-  );
- 
-  // Load existing MOTM if already set
-  useEffect(() => {
-  supabase
-    .from("matches")
-    .select("motm_player_id")
-    .eq("id", matchId)
-    .maybeSingle()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .then(({ data }: { data: any }) => {
-      const id: string | null = data?.motm_player_id ?? null;
-      if (id) {
-        setMotmId(id);
-        setSaved(true);
-      }
-    });
-}, [matchId]);
- 
-  const saveMotm = async () => {
-    if (!motmId) return;
-    setSaving(true);
-    await supabase
-      .from("matches")
-      .update({ motm_player_id: motmId } as never)
-      .eq("id", matchId);
-    setSaving(false);
-    setSaved(true);
-    toast.success("Man of the Match saved 🏆");
-  };
- 
-  const motmPlayer = allPlayers.find((p) => p.id === motmId);
- 
-  return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
-      <main className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
-        <div className="rounded-2xl border border-primary/40 bg-primary/10 p-6 text-center">
-          <div className="text-[10px] uppercase tracking-widest text-primary">Match Result</div>
-          <h1 className="mt-1 font-display text-3xl text-primary">{match.result_text}</h1>
-        </div>
- 
-        {/* MOTM picker */}
-        <div className="mt-6 rounded-xl border border-border bg-card p-5">
-          <div className="flex items-center gap-2 font-display text-xl">
-            <Star className="h-5 w-5 text-yellow-400 fill-yellow-400" />
-            Man of the Match
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Select the standout performer of this match.
-          </p>
- 
-          {saved && motmPlayer ? (
-            <div className="mt-4 flex items-center gap-3 rounded-xl border border-yellow-400/40 bg-yellow-400/10 p-4">
-              <div className="grid h-12 w-12 place-items-center rounded-full bg-yellow-400/20 text-yellow-500 font-display text-lg">
-                {motmPlayer.player_name.slice(0, 1)}
-              </div>
-              <div>
-                <div className="font-display text-lg">{motmPlayer.player_name}</div>
-                <div className="text-xs text-muted-foreground">Man of the Match 🏆</div>
-              </div>
-              <button
-                onClick={() => setSaved(false)}
-                className="ml-auto text-xs text-muted-foreground underline"
-              >
-                Change
-              </button>
-            </div>
-          ) : (
-            <div className="mt-4 space-y-3">
-              <select
-                value={motmId ?? ""}
-                onChange={(e) => setMotmId(e.target.value || null)}
-                className="input w-full"
-              >
-                <option value="">Select a player…</option>
-                {allPlayers.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.player_name}
-                    {p.jersey_number != null ? ` (#${p.jersey_number})` : ""}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={saveMotm}
-                disabled={!motmId || saving}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:brightness-110 disabled:opacity-50"
-              >
-                <Star className="h-4 w-4" />
-                {saving ? "Saving…" : "Save Man of the Match"}
-              </button>
-            </div>
-          )}
-        </div>
- 
-        <Link
-          to="/match/$matchId"
-          params={{ matchId }}
-          className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-md border border-border bg-card px-4 py-2.5 text-sm font-semibold transition hover:border-primary/40"
-        >
-          <Eye className="h-4 w-4" /> View full scorecard
-        </Link>
-      </main>
-    </div>
   );
 }
