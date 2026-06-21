@@ -5,7 +5,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { supabase } from "@/integrations/supabase/client";
 import {
   ArrowLeft, Eye, Undo2, RefreshCw, Flag, Star, ChevronRight,
-  Zap, Target, Activity,
+  Zap, Target, Activity, User,
 } from "lucide-react";
  
 export const Route = createFileRoute("/_authenticated/matches/$matchId/score")({
@@ -31,28 +31,108 @@ type Ball = {
   is_wicket: boolean; batter_id: string | null; non_striker_id: string | null;
   bowler_id: string | null; dismissed_player_id: string | null; wicket_type: string | null;
 };
-type Member = { id: string; player_name: string; jersey_number: number | null };
+type Member = {
+  id: string; player_name: string; jersey_number: number | null;
+  avatar_url: string | null;
+};
 type ExtraKind = "wide" | "noball" | "bye" | "legbye";
  
-/* ---------- Wicket modal types ---------- */
 type WicketMode =
   | "bowled" | "lbw" | "caught" | "caught_behind"
   | "runout" | "stumped" | "hit_wicket" | "retired_hurt";
  
-const WICKET_MODES: { value: WicketMode; label: string; emoji: string; needsFielder?: "catcher" | "thrower"; needsDismissed?: boolean }[] = [
-  { value: "bowled",        label: "Bowled",         emoji: "🎳" },
-  { value: "lbw",           label: "LBW",            emoji: "🦵" },
-  { value: "caught",        label: "Caught",         emoji: "🙌", needsFielder: "catcher" },
-  { value: "caught_behind", label: "Caught Behind",  emoji: "🧤", needsFielder: "catcher" },
-  { value: "stumped",       label: "Stumped",        emoji: "🪵",  needsFielder: "catcher" },
-  { value: "runout",        label: "Run Out",        emoji: "🏃", needsFielder: "thrower", needsDismissed: true },
-  { value: "hit_wicket",    label: "Hit Wicket",     emoji: "💥" },
-  { value: "retired_hurt",  label: "Retired Hurt",   emoji: "🩹" },
+const WICKET_MODES: {
+  value: WicketMode; label: string; emoji: string;
+  needsFielder?: "catcher" | "thrower"; needsDismissed?: boolean;
+}[] = [
+  { value: "bowled",        label: "Bowled",        emoji: "🎳" },
+  { value: "lbw",           label: "LBW",           emoji: "🦵" },
+  { value: "caught",        label: "Caught",        emoji: "🙌", needsFielder: "catcher" },
+  { value: "caught_behind", label: "Caught Behind", emoji: "🧤", needsFielder: "catcher" },
+  { value: "stumped",       label: "Stumped",       emoji: "🪵", needsFielder: "catcher" },
+  { value: "runout",        label: "Run Out",       emoji: "🏃", needsFielder: "thrower", needsDismissed: true },
+  { value: "hit_wicket",   label: "Hit Wicket",    emoji: "💥" },
+  { value: "retired_hurt", label: "Retired Hurt",  emoji: "🩹" },
 ];
  
-/* ================================================================
-   WICKET MODAL
-================================================================ */
+/* ── Player avatar ── */
+function PlayerAvatar({ member, size = "md" }: { member: Member | null | undefined; size?: "sm" | "md" | "lg" }) {
+  const sz = size === "sm" ? "h-7 w-7 text-xs" : size === "lg" ? "h-12 w-12 text-base" : "h-9 w-9 text-sm";
+  if (!member) return (
+    <div className={`${sz} shrink-0 grid place-items-center rounded-full bg-secondary text-muted-foreground`}>
+      <User className="h-3.5 w-3.5" />
+    </div>
+  );
+  if (member.avatar_url) return (
+    <img src={member.avatar_url} alt={member.player_name} className={`${sz} shrink-0 rounded-full object-cover border border-border`} />
+  );
+  return (
+    <div className={`${sz} shrink-0 grid place-items-center rounded-full bg-primary/15 font-semibold text-primary`}>
+      {member.player_name.slice(0, 1).toUpperCase()}
+    </div>
+  );
+}
+ 
+/* ── Player select row (shows photo + name) ── */
+function PlayerSelectRow({
+  label, value, members, onChange, stat, accent,
+}: {
+  label: string; value: string | null; members: Member[];
+  onChange: (v: string | null) => void; stat?: string; accent?: boolean;
+}) {
+  const selected = members.find((m) => m.id === value) ?? null;
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <div className={`text-[9px] uppercase tracking-widest font-bold mb-1 ${accent ? "text-primary" : "text-muted-foreground"}`}>
+        {label}{accent && " ✦"}
+      </div>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={`flex w-full items-center gap-2 rounded-lg border px-2.5 py-2 text-left transition ${
+          accent ? "border-primary/30 bg-primary/5" : "border-border bg-background"
+        }`}
+      >
+        <PlayerAvatar member={selected} size="sm" />
+        <span className="flex-1 min-w-0 truncate text-sm font-medium">
+          {selected ? selected.player_name : <span className="text-muted-foreground">Select…</span>}
+        </span>
+        {stat && <span className="font-mono text-[10px] text-muted-foreground shrink-0">{stat}</span>}
+        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+      </button>
+ 
+      {open && (
+        <div className="absolute left-0 top-full z-50 mt-1 w-full overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
+          <div className="max-h-48 overflow-y-auto py-1">
+            <button
+              className="flex w-full items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:bg-secondary"
+              onClick={() => { onChange(null); setOpen(false); }}
+            >
+              <div className="h-7 w-7 shrink-0 grid place-items-center rounded-full bg-secondary">
+                <User className="h-3.5 w-3.5" />
+              </div>
+              None
+            </button>
+            {members.map((m) => (
+              <button
+                key={m.id}
+                onClick={() => { onChange(m.id); setOpen(false); }}
+                className={`flex w-full items-center gap-2 px-3 py-2 text-sm transition hover:bg-secondary ${value === m.id ? "bg-primary/10 text-primary" : "text-foreground"}`}
+              >
+                <PlayerAvatar member={m} size="sm" />
+                <span className="flex-1 truncate font-medium">{m.player_name}</span>
+                {m.jersey_number != null && <span className="font-mono text-[10px] text-muted-foreground">#{m.jersey_number}</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+ 
+/* ── Wicket modal ── */
 function WicketModal({
   battingSquad, bowlingSquad, striker, nonStriker, runs, extra,
   onConfirm, onCancel,
@@ -74,11 +154,12 @@ function WicketModal({
   const chosen = WICKET_MODES.find((w) => w.value === mode);
   const isRetiredHurt = mode === "retired_hurt";
  
+  const fielderMember = bowlingSquad.find((m) => m.id === fielderId);
+ 
   const confirm = () => {
     if (!mode) return;
     onConfirm({
-      runs,
-      extra_type: extra,
+      runs, extra_type: extra,
       is_wicket: !isRetiredHurt,
       wicket_type: mode,
       dismissed_player_id: dismissedId || striker,
@@ -89,48 +170,48 @@ function WicketModal({
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4">
       <div className="w-full max-w-md rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
-        {/* Header */}
-        <div className="bg-destructive/15 border-b border-destructive/20 px-5 py-4">
+        <div className="border-b border-destructive/20 bg-destructive/10 px-5 py-4">
           <div className="text-[10px] uppercase tracking-widest text-destructive font-bold mb-0.5">
             {isRetiredHurt ? "🩹 Retired Hurt" : "🚨 Wicket"}
           </div>
-          <div className="font-display text-xl text-foreground">How was {battingSquad.find(m => m.id === (dismissedId || striker))?.player_name ?? "batter"} out?</div>
+          <div className="font-display text-lg text-foreground">
+            How was{" "}
+            <span className="text-destructive">
+              {battingSquad.find((m) => m.id === (dismissedId || striker))?.player_name ?? "batter"}
+            </span>{" "}
+            dismissed?
+          </div>
         </div>
  
         <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
-          {/* Wicket modes grid */}
+          {/* Mode grid */}
           <div className="grid grid-cols-2 gap-2">
             {WICKET_MODES.map((w) => (
-              <button
-                key={w.value}
-                onClick={() => { setMode(w.value); setFielderId(""); }}
+              <button key={w.value} onClick={() => { setMode(w.value); setFielderId(""); }}
                 className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-semibold transition active:scale-95 ${
                   mode === w.value
                     ? "border-destructive bg-destructive/15 text-destructive"
                     : "border-border bg-background text-foreground hover:border-destructive/40"
-                }`}
-              >
+                }`}>
                 <span>{w.emoji}</span> {w.label}
               </button>
             ))}
           </div>
  
-          {/* Run out — pick who got out (striker or non-striker) */}
+          {/* Run out — pick who got out */}
           {mode === "runout" && (
             <div>
-              <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">Who got run out?</p>
+              <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2 font-semibold">Who got run out?</p>
               <div className="grid grid-cols-2 gap-2">
                 {[striker, nonStriker].filter(Boolean).map((id) => {
-                  const name = battingSquad.find(m => m.id === id)?.player_name ?? "—";
+                  const mem = battingSquad.find((m) => m.id === id);
                   return (
-                    <button
-                      key={id}
-                      onClick={() => setDismissedId(id!)}
-                      className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${
-                        dismissedId === id ? "border-destructive bg-destructive/10 text-destructive" : "border-border hover:border-destructive/30"
-                      }`}
-                    >
-                      {name}
+                    <button key={id} onClick={() => setDismissedId(id!)}
+                      className={`flex items-center gap-2 rounded-xl border p-2.5 transition ${
+                        dismissedId === id ? "border-destructive bg-destructive/10" : "border-border hover:border-destructive/30"
+                      }`}>
+                      <PlayerAvatar member={mem} size="sm" />
+                      <span className="text-sm font-medium truncate">{mem?.player_name ?? "—"}</span>
                     </button>
                   );
                 })}
@@ -138,46 +219,47 @@ function WicketModal({
             </div>
           )}
  
-          {/* Fielder picker for caught / stumped / run out */}
+          {/* Fielder picker with avatar */}
           {chosen?.needsFielder && (
             <div>
-              <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">
-                {chosen.needsFielder === "catcher" ? "Fielder / keeper" : "Throw by"}
+              <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2 font-semibold">
+                {chosen.needsFielder === "catcher" ? "Caught / taken by" : "Thrown by"}
               </p>
-              <select
-                className="input w-full"
-                value={fielderId}
-                onChange={(e) => setFielderId(e.target.value)}
-              >
-                <option value="">Select fielder…</option>
+              <div className="grid grid-cols-1 gap-1.5 max-h-40 overflow-y-auto">
                 {bowlingSquad.map((m) => (
-                  <option key={m.id} value={m.id}>{m.player_name}{m.jersey_number != null ? ` #${m.jersey_number}` : ""}</option>
+                  <button key={m.id} onClick={() => setFielderId(m.id)}
+                    className={`flex items-center gap-3 rounded-xl border px-3 py-2 text-sm transition ${
+                      fielderId === m.id ? "border-primary bg-primary/10 text-primary" : "border-border bg-background hover:border-primary/30"
+                    }`}>
+                    <PlayerAvatar member={m} size="sm" />
+                    <span className="font-medium flex-1 text-left">{m.player_name}</span>
+                    {m.jersey_number != null && <span className="font-mono text-[10px] text-muted-foreground">#{m.jersey_number}</span>}
+                    {fielderId === m.id && <span className="text-primary text-xs font-bold">✓</span>}
+                  </button>
                 ))}
-              </select>
+              </div>
+              {fielderMember && (
+                <div className="mt-2 flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-xs text-primary font-semibold">
+                  <PlayerAvatar member={fielderMember} size="sm" />
+                  {fielderMember.player_name} selected
+                </div>
+              )}
             </div>
           )}
  
-          {/* Retired hurt info */}
           {isRetiredHurt && (
             <div className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2.5 text-xs text-amber-600 dark:text-amber-400">
-              Player retires hurt — not counted as a wicket. They can return to bat later.
+              Not counted as a wicket. Player can return to bat later.
             </div>
           )}
         </div>
  
-        {/* Actions */}
         <div className="border-t border-border p-4 grid grid-cols-2 gap-2">
-          <button
-            onClick={onCancel}
-            className="rounded-xl border border-border bg-background py-2.5 text-sm font-semibold transition hover:bg-secondary"
-          >
+          <button onClick={onCancel} className="rounded-xl border border-border bg-background py-2.5 text-sm font-semibold transition hover:bg-secondary">
             Cancel
           </button>
-          <button
-            onClick={confirm}
-            disabled={!mode}
-            className="rounded-xl bg-destructive py-2.5 text-sm font-semibold text-destructive-foreground transition active:scale-95 disabled:opacity-50"
-          >
+          <button onClick={confirm} disabled={!mode}
+            className="rounded-xl bg-destructive py-2.5 text-sm font-semibold text-destructive-foreground transition active:scale-95 disabled:opacity-50">
             {isRetiredHurt ? "Retire Hurt" : "Confirm Out"}
           </button>
         </div>
@@ -200,8 +282,6 @@ function ScorePage() {
   const [extra, setExtra] = useState<ExtraKind | null>(null);
   const [busy, setBusy] = useState(false);
   const [breakDismissed, setBreakDismissed] = useState(false);
- 
-  // Wicket modal state
   const [wicketPending, setWicketPending] = useState<{ runs: number; extra: ExtraKind | null } | null>(null);
  
   const load = useCallback(async () => {
@@ -211,21 +291,35 @@ function ScorePage() {
       .eq("id", matchId).maybeSingle();
     if (!m) return;
     setMatch(m as unknown as Match);
+ 
     const { data: inn } = await supabase.from("innings").select("*")
-      .eq("match_id", matchId).eq("innings_no", (m as { current_innings: number }).current_innings).maybeSingle();
+      .eq("match_id", matchId)
+      .eq("innings_no", (m as { current_innings: number }).current_innings)
+      .maybeSingle();
     const innRow = (inn as Innings) ?? null;
     setInnings(innRow);
+ 
     if (innRow) {
       const [{ data: bs }, { data: bat }, { data: bowl }] = await Promise.all([
         supabase.from("balls")
           .select("id, ball_index, over_number, ball_in_over, runs, extra_type, is_wicket, batter_id, non_striker_id, bowler_id, dismissed_player_id, wicket_type")
           .eq("innings_id", innRow.id).order("ball_index", { ascending: false }).limit(48),
-        supabase.from("team_members").select("id, player_name, jersey_number").eq("team_id", innRow.batting_team_id).order("jersey_number", { nullsFirst: false }),
-        supabase.from("team_members").select("id, player_name, jersey_number").eq("team_id", innRow.bowling_team_id).order("jersey_number", { nullsFirst: false }),
+        supabase.from("team_members")
+          .select("id, player_name, jersey_number, profiles(avatar_url)")
+          .eq("team_id", innRow.batting_team_id).order("jersey_number", { nullsFirst: false }),
+        supabase.from("team_members")
+          .select("id, player_name, jersey_number, profiles(avatar_url)")
+          .eq("team_id", innRow.bowling_team_id).order("jersey_number", { nullsFirst: false }),
       ]);
+ 
+      // Flatten profile avatar into member
+      const flattenMember = (raw: unknown): Member => {
+        const r = raw as { id: string; player_name: string; jersey_number: number | null; profiles?: { avatar_url?: string | null } | null };
+        return { id: r.id, player_name: r.player_name, jersey_number: r.jersey_number, avatar_url: r.profiles?.avatar_url ?? null };
+      };
       setBalls((bs as Ball[]) ?? []);
-      setBattingSquad((bat as Member[]) ?? []);
-      setBowlingSquad((bowl as Member[]) ?? []);
+      setBattingSquad((bat ?? []).map(flattenMember));
+      setBowlingSquad((bowl ?? []).map(flattenMember));
     }
   }, [matchId]);
  
@@ -238,7 +332,6 @@ function ScorePage() {
   const oversStr = innings ? `${Math.floor(innings.balls / 6)}.${innings.balls % 6}` : "0.0";
   const totalAllowed = (match?.overs ?? 0) * 6;
  
-  // Current over balls only
   const currentOverNumber = innings ? Math.floor(innings.balls / 6) : 0;
   const currentOverBalls = [...balls].reverse().filter((b) => b.over_number === currentOverNumber);
  
@@ -344,8 +437,7 @@ function ScorePage() {
     const ball_in_over = (legalBefore % 6) + 1;
  
     const { error: bErr } = await supabase.from("balls").insert({
-      innings_id: innings.id,
-      ball_index: nextBallIndex,
+      innings_id: innings.id, ball_index: nextBallIndex,
       over_number, ball_in_over,
       runs: isRetiredHurt ? 0 : totalRunsThisBall,
       extra_type: params.extra_type ?? null,
@@ -364,7 +456,8 @@ function ScorePage() {
     const newExtras = innings.extras + (isExtra && !isRetiredHurt ? extrasAdd : 0);
  
     const batRuns = params.runs;
-    const rotateForOdd = (isLegal || params.extra_type === "bye" || params.extra_type === "legbye") ? batRuns % 2 === 1 : params.extra_type === "noball" && params.runs % 2 === 1;
+    const rotateForOdd = (isLegal || params.extra_type === "bye" || params.extra_type === "legbye")
+      ? batRuns % 2 === 1 : params.extra_type === "noball" && params.runs % 2 === 1;
     const endOfOver = isLegal && !isRetiredHurt && newBalls > 0 && newBalls % 6 === 0;
  
     let newStriker: string | null = innings.striker_id;
@@ -372,16 +465,16 @@ function ScorePage() {
     if (rotateForOdd) [newStriker, newNonStriker] = [newNonStriker, newStriker];
     if (endOfOver) [newStriker, newNonStriker] = [newNonStriker, newStriker];
     if (params.is_wicket && !isRetiredHurt) {
-      // For run out of non-striker, clear non-striker instead
       if (params.wicket_type === "runout" && params.dismissed_player_id === innings.non_striker_id) {
         newNonStriker = null;
-      } else {
-        newStriker = null;
-      }
+      } else { newStriker = null; }
     }
-    if (isRetiredHurt) newStriker = null; // send retired hurt batter off
+    if (isRetiredHurt) newStriker = null;
  
-    const { error: iErr } = await supabase.from("innings").update({ runs: newRuns, wickets: newWickets, balls: newBalls, extras: newExtras, striker_id: newStriker, non_striker_id: newNonStriker }).eq("id", innings.id);
+    const { error: iErr } = await supabase.from("innings").update({
+      runs: newRuns, wickets: newWickets, balls: newBalls, extras: newExtras,
+      striker_id: newStriker, non_striker_id: newNonStriker,
+    }).eq("id", innings.id);
     if (iErr) { setBusy(false); return toast.error(iErr.message); }
     setExtra(null);
     setWicketPending(null);
@@ -419,7 +512,7 @@ function ScorePage() {
  
   const endMatch = async () => {
     if (!match || !innings) return;
-    if (!window.confirm("End the match now? The current score will decide the result.")) return;
+    if (!window.confirm("End the match now?")) return;
     setBusy(true);
     await supabase.from("innings").update({ completed: true }).eq("id", innings.id);
     let winnerId: string | null = null;
@@ -446,14 +539,16 @@ function ScorePage() {
     await load();
   };
  
-  /* ---- Early returns ---- */
+  /* ── Early returns ── */
   if (!match) return (
     <div className="min-h-screen bg-background"><Navbar />
       <div className="mx-auto max-w-4xl px-4 py-10"><div className="h-40 animate-pulse rounded-xl border border-border bg-card" /></div>
     </div>
   );
  
-  if (match.status === "completed") return <CompletedScreen match={match} matchId={matchId} battingSquad={battingSquad} bowlingSquad={bowlingSquad} />;
+  if (match.status === "completed") return (
+    <CompletedScreen match={match} matchId={matchId} battingSquad={battingSquad} bowlingSquad={bowlingSquad} />
+  );
  
   if (!innings || !battingTeam) return (
     <div className="min-h-screen bg-background"><Navbar />
@@ -486,19 +581,17 @@ function ScorePage() {
  
   const runBtns: number[] = [0, 1, 2, 3, 4, 6];
   const availableBatters = battingSquad.filter((m) => m.id !== innings.striker_id && m.id !== innings.non_striker_id);
-  const color = battingTeam.jersey_color || "#003527";
+  const strikerMember = battingSquad.find((m) => m.id === innings.striker_id);
+  const nonStrikerMember = battingSquad.find((m) => m.id === innings.non_striker_id);
+  const bowlerMember = bowlingSquad.find((m) => m.id === innings.bowler_id);
  
   return (
     <div className="min-h-screen bg-background pb-12">
-      {/* Wicket modal */}
       {wicketPending && (
         <WicketModal
-          battingSquad={battingSquad}
-          bowlingSquad={bowlingSquad}
-          striker={innings.striker_id}
-          nonStriker={innings.non_striker_id}
-          runs={wicketPending.runs}
-          extra={wicketPending.extra}
+          battingSquad={battingSquad} bowlingSquad={bowlingSquad}
+          striker={innings.striker_id} nonStriker={innings.non_striker_id}
+          runs={wicketPending.runs} extra={wicketPending.extra}
           onConfirm={(params) => addBall(params)}
           onCancel={() => { setWicketPending(null); setBusy(false); }}
         />
@@ -517,85 +610,82 @@ function ScorePage() {
           </button>
         </div>
  
-        {/* ── PREMIUM SCOREBOARD ── */}
-        <section
-          className="relative overflow-hidden rounded-2xl p-5 pb-4 shadow-2xl"
-          style={{ background: `linear-gradient(135deg, ${color}ee 0%, ${color}99 100%)` }}
-        >
-          {/* Background pattern */}
-          <div className="pointer-events-none absolute inset-0 opacity-10">
-            <div className="absolute -right-8 -top-8 h-40 w-40 rounded-full border-2 border-white" />
-            <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full border border-white" />
-            <div className="absolute bottom-0 left-0 h-32 w-32 -translate-x-1/2 translate-y-1/2 rounded-full border border-white" />
-          </div>
+        {/* ── PREMIUM SCOREBOARD (no jersey color — clean dark card) ── */}
+        <section className="relative overflow-hidden rounded-2xl border border-border bg-card shadow-xl p-5">
+          {/* Subtle background grid */}
+          <div className="pointer-events-none absolute inset-0 opacity-[0.03]"
+            style={{ backgroundImage: "radial-gradient(circle, currentColor 1px, transparent 1px)", backgroundSize: "20px 20px" }} />
  
-          {/* Team + live badge */}
-          <div className="relative flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="grid h-9 w-9 place-items-center rounded-lg bg-white/20 font-display text-sm font-bold text-white">
-                {(battingTeam.short_name || battingTeam.name).slice(0, 3).toUpperCase()}
-              </span>
-              <span className="font-display text-lg text-white">{battingTeam.name}</span>
+          <div className="relative flex items-center justify-between mb-4">
+            <div>
+              <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">Innings {innings.innings_no}</div>
+              <div className="font-display text-lg text-foreground mt-0.5">{battingTeam.name}</div>
             </div>
-            <span className="flex items-center gap-1 rounded-full bg-white/20 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-400" /> Live
+            <span className="flex items-center gap-1.5 rounded-full border border-destructive/30 bg-destructive/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-destructive">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-destructive" /> Live
             </span>
           </div>
  
           {/* Big score */}
-          <div className="relative mt-3 text-center">
-            <div className="font-display text-[72px] leading-none tabular-nums text-white">
-              {innings.runs}<span className="text-white/50 text-5xl">/{innings.wickets}</span>
+          <div className="relative text-center py-2">
+            <div className="font-display leading-none tabular-nums" style={{ fontSize: "clamp(56px,14vw,80px)" }}>
+              <span className="text-foreground">{innings.runs}</span>
+              <span className="text-muted-foreground" style={{ fontSize: "55%" }}>/{innings.wickets}</span>
             </div>
-            <div className="mt-1 font-mono text-sm text-white/70">
-              {oversStr} / {match.overs} ov · Extras {innings.extras}
+            <div className="mt-1.5 font-mono text-sm text-muted-foreground">
+              {oversStr} / {match.overs} ov
+              <span className="mx-2 text-border">·</span>
+              Extras {innings.extras}
             </div>
           </div>
  
-          {/* Target bar */}
+          {/* Target progress */}
           {innings.innings_no === 2 && innings.target && (
-            <div className="relative mt-3 rounded-xl bg-black/20 p-3 text-center">
-              <div className="text-[10px] uppercase tracking-widest text-white/60">Target</div>
-              <div className="font-display text-2xl text-white tabular-nums">{innings.target}</div>
-              <div className="text-xs text-white/70">
-                Need <b className="text-white">{Math.max(0, innings.target - innings.runs)}</b> off <b className="text-white">{Math.max(0, totalAllowed - innings.balls)}</b> balls
+            <div className="relative mt-3 rounded-xl border border-border bg-background/50 p-3">
+              <div className="flex items-center justify-between text-xs mb-2">
+                <span className="text-muted-foreground">Target <b className="text-foreground">{innings.target}</b></span>
+                <span className="text-muted-foreground">Need <b className="text-primary">{Math.max(0, innings.target - innings.runs)}</b> off <b className="text-foreground">{Math.max(0, totalAllowed - innings.balls)}</b> balls</span>
               </div>
-              {/* Progress bar */}
-              <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/20">
-                <div className="h-full rounded-full bg-white transition-all" style={{ width: `${Math.min(100, (innings.runs / innings.target) * 100)}%` }} />
+              <div className="h-2 w-full overflow-hidden rounded-full bg-border">
+                <div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: `${Math.min(100, (innings.runs / innings.target) * 100)}%` }} />
               </div>
             </div>
           )}
  
-          {/* Run rate row */}
+          {/* Stats row */}
           <div className="relative mt-3 grid grid-cols-3 gap-2">
-            <StatChip label="Run Rate" value={runRate.toFixed(2)} icon={<Activity className="h-3 w-3" />} />
-            {reqRunRate != null
-              ? <StatChip label="Req. RR" value={reqRunRate > 0 ? reqRunRate.toFixed(2) : "—"} icon={<Target className="h-3 w-3" />} accent />
-              : <StatChip label="Innings" value={`${innings.innings_no}`} icon={<Zap className="h-3 w-3" />} />}
-            <StatChip label="Wickets" value={`${innings.wickets}/10`} icon={<Star className="h-3 w-3" />} />
+            {[
+              { label: "Run Rate", value: runRate.toFixed(2), icon: <Activity className="h-3 w-3" /> },
+              reqRunRate != null
+                ? { label: "Req. RR", value: reqRunRate > 0 ? reqRunRate.toFixed(2) : "—", icon: <Target className="h-3 w-3" />, accent: true }
+                : { label: "Innings", value: `${innings.innings_no} of 2`, icon: <Zap className="h-3 w-3" /> },
+              { label: "Wickets", value: `${innings.wickets}/10`, icon: <Star className="h-3 w-3" /> },
+            ].map((s, i) => (
+              <div key={i} className={`rounded-xl border px-2 py-2 text-center ${(s as { accent?: boolean }).accent ? "border-primary/30 bg-primary/5" : "border-border bg-background/50"}`}>
+                <div className="flex items-center justify-center gap-1 text-[9px] uppercase tracking-wider text-muted-foreground mb-1">{s.icon} {s.label}</div>
+                <div className={`font-display text-lg tabular-nums ${(s as { accent?: boolean }).accent ? "text-primary" : "text-foreground"}`}>{s.value}</div>
+              </div>
+            ))}
           </div>
         </section>
  
-        {/* ── PLAYERS ── */}
-        <section className="mt-3 rounded-xl border border-border bg-card overflow-hidden">
+        {/* ── PLAYERS ── premium card with avatar dropdowns ── */}
+        <section className="mt-3 rounded-xl border border-border bg-card overflow-visible">
           {/* Striker */}
-          <div className="border-b border-border/50 px-3 py-2.5 bg-primary/5">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-[9px] uppercase tracking-widest text-primary font-bold">Striker ✦</div>
-                <select className="mt-0.5 bg-transparent font-semibold text-sm text-foreground focus:outline-none cursor-pointer"
-                  value={innings.striker_id ?? ""} onChange={(e) => setPlayer("striker_id", e.target.value || null)}>
-                  <option value="">Select…</option>
-                  {battingSquad.filter(m => m.id !== innings.non_striker_id).map(m => (
-                    <option key={m.id} value={m.id}>{m.player_name}{m.jersey_number != null ? ` #${m.jersey_number}` : ""}</option>
-                  ))}
-                </select>
+          <div className="border-b border-border px-3 pt-3 pb-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <PlayerSelectRow
+                  label="Striker" accent
+                  value={innings.striker_id}
+                  members={battingSquad.filter((m) => m.id !== innings.non_striker_id)}
+                  onChange={(v) => setPlayer("striker_id", v)}
+                  stat={batterStats ? `${batterStats.runs}(${batterStats.faced})` : undefined}
+                />
               </div>
               {batterStats && (
-                <div className="text-right">
-                  <span className="font-display text-2xl tabular-nums text-primary">{batterStats.runs}</span>
-                  <span className="text-muted-foreground text-xs ml-1">({batterStats.faced})</span>
+                <div className="text-right shrink-0 pt-4">
+                  <div className="font-display text-2xl tabular-nums text-primary">{batterStats.runs}</div>
                   <div className="text-[10px] text-muted-foreground">{batterStats.fours}×4 · {batterStats.sixes}×6</div>
                 </div>
               )}
@@ -603,70 +693,66 @@ function ScorePage() {
           </div>
  
           {/* Non-striker + Bowler */}
-          <div className="grid grid-cols-2 divide-x divide-border/50">
-            <div className="px-3 py-2.5">
-              <div className="text-[9px] uppercase tracking-widest text-muted-foreground">Non-striker</div>
-              <select className="mt-0.5 w-full bg-transparent text-sm text-foreground focus:outline-none cursor-pointer"
-                value={innings.non_striker_id ?? ""} onChange={(e) => setPlayer("non_striker_id", e.target.value || null)}>
-                <option value="">Select…</option>
-                {battingSquad.filter(m => m.id !== innings.striker_id).map(m => (
-                  <option key={m.id} value={m.id}>{m.player_name}{m.jersey_number != null ? ` #${m.jersey_number}` : ""}</option>
-                ))}
-              </select>
+          <div className="grid grid-cols-2 divide-x divide-border px-0">
+            <div className="px-3 py-3">
+              <PlayerSelectRow
+                label="Non-striker"
+                value={innings.non_striker_id}
+                members={battingSquad.filter((m) => m.id !== innings.striker_id)}
+                onChange={(v) => setPlayer("non_striker_id", v)}
+              />
             </div>
-            <div className="px-3 py-2.5">
-              <div className="flex items-center justify-between">
-                <div className="text-[9px] uppercase tracking-widest text-muted-foreground">Bowler</div>
-                {bowlerStats && <span className="font-mono text-[10px] text-muted-foreground">{bowlerStats.overs}-{bowlerStats.runs}-{bowlerStats.wkts}</span>}
-              </div>
-              <select className="mt-0.5 w-full bg-transparent text-sm text-foreground focus:outline-none cursor-pointer"
-                value={innings.bowler_id ?? ""} onChange={(e) => setPlayer("bowler_id", e.target.value || null)}>
-                <option value="">Select…</option>
-                {bowlingSquad.map(m => (
-                  <option key={m.id} value={m.id}>{m.player_name}{m.jersey_number != null ? ` #${m.jersey_number}` : ""}</option>
-                ))}
-              </select>
+            <div className="px-3 py-3">
+              <PlayerSelectRow
+                label="Bowler"
+                value={innings.bowler_id}
+                members={bowlingSquad}
+                onChange={(v) => setPlayer("bowler_id", v)}
+                stat={bowlerStats ? `${bowlerStats.overs}-${bowlerStats.runs}-${bowlerStats.wkts}` : undefined}
+              />
             </div>
           </div>
         </section>
  
-        {/* Swap strike */}
-        {innings.striker_id && innings.non_striker_id && (
-          <button onClick={async () => {
-            await supabase.from("innings").update({ striker_id: innings.non_striker_id, non_striker_id: innings.striker_id }).eq("id", innings.id);
-            load();
-          }} className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground">
-            <RefreshCw className="h-3 w-3" /> Swap strike
-          </button>
-        )}
+        {/* Swap + at-crease preview */}
+        <div className="mt-2 flex items-center justify-between">
+          {innings.striker_id && innings.non_striker_id ? (
+            <button onClick={async () => {
+              await supabase.from("innings").update({ striker_id: innings.non_striker_id, non_striker_id: innings.striker_id }).eq("id", innings.id);
+              load();
+            }} className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground">
+              <RefreshCw className="h-3 w-3" /> Swap strike
+            </button>
+          ) : <div />}
+          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            {strikerMember && <><PlayerAvatar member={strikerMember} size="sm" /><span className="font-medium text-foreground">{strikerMember.player_name}</span></>}
+            {bowlerMember && <><span className="text-border mx-0.5">vs</span><PlayerAvatar member={bowlerMember} size="sm" /></>}
+          </div>
+        </div>
  
         {/* ── THIS OVER ── */}
-        <div className="mt-3 flex items-center gap-2 overflow-x-auto rounded-xl border border-border bg-card/60 px-3 py-2.5">
-          <span className="shrink-0 text-[10px] uppercase tracking-widest text-muted-foreground font-semibold pr-1 border-r border-border mr-1">
-            Over {currentOverNumber + 1}
-          </span>
+        <div className="mt-3 flex items-center gap-2 overflow-x-auto rounded-xl border border-border bg-card px-3 py-2.5">
+          <div className="shrink-0 pr-2 border-r border-border mr-1">
+            <div className="text-[9px] uppercase tracking-widest text-muted-foreground">Over</div>
+            <div className="font-display text-base text-foreground">{currentOverNumber + 1}</div>
+          </div>
           {currentOverBalls.length === 0
             ? <span className="text-xs text-muted-foreground italic">No balls yet</span>
             : currentOverBalls.map((b) => (
               <span key={b.id} className={`grid h-8 w-8 shrink-0 place-items-center rounded-full font-mono text-xs font-bold ${
                 b.is_wicket ? "bg-destructive text-destructive-foreground"
-                : b.extra_type ? "bg-amber-500/20 text-amber-600 dark:text-amber-400"
+                : b.extra_type ? "border border-amber-400/50 bg-amber-400/10 text-amber-600 dark:text-amber-400"
                 : b.runs >= 6 ? "bg-primary text-primary-foreground"
-                : b.runs === 4 ? "bg-primary/25 text-primary"
+                : b.runs === 4 ? "border border-primary/40 bg-primary/15 text-primary"
                 : "bg-secondary text-foreground"
               }`}>
-                {b.is_wicket ? "W"
-                  : b.extra_type === "wide" ? `wd`
-                  : b.extra_type === "noball" ? `nb`
-                  : b.extra_type === "bye" ? `b${b.runs}`
-                  : b.extra_type === "legbye" ? `lb${b.runs}`
-                  : b.runs}
+                {b.is_wicket ? "W" : b.extra_type === "wide" ? "wd" : b.extra_type === "noball" ? "nb"
+                  : b.extra_type === "bye" ? `b${b.runs}` : b.extra_type === "legbye" ? `lb${b.runs}` : b.runs}
               </span>
             ))
           }
-          {/* Empty circles for remaining balls */}
           {Array.from({ length: Math.max(0, 6 - currentOverBalls.length) }).map((_, i) => (
-            <span key={`empty-${i}`} className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-dashed border-border text-xs text-border">·</span>
+            <span key={`e-${i}`} className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-dashed border-border/40 text-[10px] text-border">·</span>
           ))}
         </div>
  
@@ -674,22 +760,21 @@ function ScorePage() {
         <div className="mt-3 grid grid-cols-4 gap-1.5">
           {(["wide", "noball", "bye", "legbye"] as ExtraKind[]).map((k) => {
             const active = extra === k;
-            const labels = { wide: "Wide", noball: "No-ball", bye: "Bye", legbye: "Leg-bye" };
+            const labels = { wide: "Wide", noball: "No Ball", bye: "Bye", legbye: "Leg Bye" };
             return (
               <button key={k} onClick={() => setExtra(active ? null : k)} disabled={busy}
-                className={`h-10 rounded-lg border text-[11px] font-semibold uppercase tracking-wide transition ${
-                  active ? "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                  : "border-border bg-card text-muted-foreground hover:text-foreground"
+                className={`h-10 rounded-xl border text-[11px] font-bold uppercase tracking-wide transition active:scale-95 ${
+                  active ? "border-amber-400 bg-amber-400/15 text-amber-600 dark:text-amber-400 shadow-sm"
+                  : "border-border bg-card text-muted-foreground hover:border-amber-400/40 hover:text-foreground"
                 }`}>
                 {labels[k]}
               </button>
             );
           })}
         </div>
- 
         {extra && (
-          <p className="mt-1.5 text-center text-[11px] text-amber-600 dark:text-amber-400">
-            <span className="font-bold">{extra}</span> selected — tap a run to log
+          <p className="mt-1.5 text-center text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+            {extra} selected — tap a run
           </p>
         )}
  
@@ -699,46 +784,45 @@ function ScorePage() {
             <button key={r} disabled={busy}
               onClick={() => addBall({ runs: r, extra_type: extra })}
               className={`h-16 sm:h-20 rounded-2xl border font-display text-3xl sm:text-4xl tracking-wide transition active:scale-95 disabled:opacity-60 ${
-                r === 4 ? "border-primary/40 bg-primary/10 text-primary hover:bg-primary/20"
-                : r === 6 ? "border-primary bg-primary text-primary-foreground hover:brightness-110"
-                : "border-border bg-card text-foreground hover:border-primary/30 hover:bg-primary/5"
+                r === 6 ? "border-primary bg-primary text-primary-foreground shadow-lg hover:brightness-110"
+                : r === 4 ? "border-primary/40 bg-primary/10 text-primary hover:bg-primary/20"
+                : "border-border bg-card text-foreground hover:border-primary/30 hover:bg-card/80"
               }`}>
               {r}
             </button>
           ))}
         </div>
  
-        {/* ── WICKET + RETIRED HURT + UNDO ── */}
+        {/* ── WICKET / RETIRED HURT / UNDO ── */}
         <div className="mt-2 grid grid-cols-3 gap-2">
           <button disabled={busy}
             onClick={() => { setBusy(true); setWicketPending({ runs: 0, extra }); }}
-            className="col-span-2 h-14 rounded-2xl bg-destructive font-display text-2xl tracking-wide text-destructive-foreground transition active:scale-95 disabled:opacity-60">
+            className="col-span-2 h-14 rounded-2xl bg-destructive font-display text-2xl tracking-wide text-destructive-foreground shadow-lg transition active:scale-95 disabled:opacity-60">
             WICKET
           </button>
           <button disabled={busy || balls.length === 0} onClick={undo}
-            className="inline-flex h-14 items-center justify-center gap-1.5 rounded-2xl border border-border bg-card font-display text-lg tracking-wide transition active:scale-95 disabled:opacity-50">
-            <Undo2 className="h-5 w-5" />
+            className="inline-flex h-14 items-center justify-center rounded-2xl border border-border bg-card transition active:scale-95 disabled:opacity-50">
+            <Undo2 className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>
  
-        {/* Retired Hurt button */}
         <button disabled={busy || !innings.striker_id}
           onClick={() => { setBusy(true); setWicketPending({ runs: 0, extra: null }); }}
-          className="mt-2 w-full h-10 rounded-xl border border-amber-400/40 bg-amber-400/10 text-sm font-semibold text-amber-600 dark:text-amber-400 transition active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2">
+          className="mt-2 w-full h-10 rounded-xl border border-amber-400/30 bg-amber-400/8 text-sm font-semibold text-amber-600 dark:text-amber-400 transition active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 hover:border-amber-400/50">
           🩹 Retired Hurt
         </button>
  
         {/* New batter prompt */}
         {!innings.striker_id && availableBatters.length > 0 && (
-          <div className="mt-3 rounded-xl border border-primary/40 bg-primary/10 p-3">
-            <p className="mb-2 text-xs font-bold uppercase tracking-widest text-primary">New batter to crease</p>
+          <div className="mt-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
+            <p className="mb-2.5 text-xs font-bold uppercase tracking-widest text-primary">New batter to crease</p>
             <div className="flex flex-wrap gap-2">
               {availableBatters.map((m) => (
                 <button key={m.id} onClick={() => setPlayer("striker_id", m.id)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-medium hover:border-primary/40 active:scale-95">
+                  className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm font-medium hover:border-primary/40 active:scale-95 transition">
+                  <PlayerAvatar member={m} size="sm" />
                   {m.player_name}
                   {m.jersey_number != null && <span className="font-mono text-[10px] text-muted-foreground">#{m.jersey_number}</span>}
-                  <ChevronRight className="h-3 w-3 text-primary" />
                 </button>
               ))}
             </div>
@@ -748,7 +832,7 @@ function ScorePage() {
         {/* End match */}
         <div className="mt-6 border-t border-border pt-4">
           <button type="button" onClick={endMatch} disabled={busy}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive transition active:scale-95 hover:bg-destructive/20 disabled:opacity-50">
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-destructive/20 bg-card px-4 py-3 text-sm font-semibold text-destructive/70 transition active:scale-95 hover:border-destructive/40 hover:text-destructive disabled:opacity-50">
             <Flag className="h-4 w-4" /> End match
           </button>
           <p className="mt-1.5 text-center text-[11px] text-muted-foreground">Ends match with current score as result.</p>
@@ -758,19 +842,7 @@ function ScorePage() {
   );
 }
  
-/* ── Stat chip inside scoreboard ── */
-function StatChip({ label, value, icon, accent }: { label: string; value: string; icon: React.ReactNode; accent?: boolean }) {
-  return (
-    <div className="rounded-lg bg-black/20 px-2 py-1.5 text-center">
-      <div className="flex items-center justify-center gap-1 text-white/60 text-[9px] uppercase tracking-wider mb-0.5">
-        {icon} {label}
-      </div>
-      <div className={`font-display text-base tabular-nums ${accent ? "text-yellow-300" : "text-white"}`}>{value}</div>
-    </div>
-  );
-}
- 
-/* ── Completed screen with MOTM ── */
+/* ── Completed + MOTM ── */
 function CompletedScreen({ match, matchId, battingSquad, bowlingSquad }: {
   match: Match; matchId: string; battingSquad: Member[]; bowlingSquad: Member[];
 }) {
@@ -802,32 +874,40 @@ function CompletedScreen({ match, matchId, battingSquad, bowlingSquad }: {
     <div className="min-h-screen bg-background"><Navbar />
       <main className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
         <div className="rounded-2xl border border-primary/40 bg-primary/10 p-6 text-center">
-          <div className="text-[10px] uppercase tracking-widest text-primary">Match Result</div>
+          <div className="text-[10px] uppercase tracking-widest text-primary font-semibold">Match Result</div>
           <h1 className="mt-1 font-display text-3xl text-primary">{match.result_text}</h1>
         </div>
         <div className="mt-6 rounded-xl border border-border bg-card p-5">
           <div className="flex items-center gap-2 font-display text-xl"><Star className="h-5 w-5 text-yellow-400 fill-yellow-400" /> Man of the Match</div>
           {saved && motmPlayer ? (
             <div className="mt-4 flex items-center gap-3 rounded-xl border border-yellow-400/40 bg-yellow-400/10 p-4">
-              <div className="grid h-12 w-12 place-items-center rounded-full bg-yellow-400/20 text-yellow-500 font-display text-lg">{motmPlayer.player_name.slice(0, 1)}</div>
+              <PlayerAvatar member={motmPlayer} size="lg" />
               <div><div className="font-display text-lg">{motmPlayer.player_name}</div><div className="text-xs text-muted-foreground">Man of the Match 🏆</div></div>
               <button onClick={() => setSaved(false)} className="ml-auto text-xs text-muted-foreground underline">Change</button>
             </div>
           ) : (
             <div className="mt-4 space-y-3">
-              <select value={motmId ?? ""} onChange={(e) => setMotmId(e.target.value || null)} className="input w-full">
-                <option value="">Select a player…</option>
-                {allPlayers.map((p) => <option key={p.id} value={p.id}>{p.player_name}{p.jersey_number != null ? ` (#${p.jersey_number})` : ""}</option>)}
-              </select>
+              <div className="grid grid-cols-1 gap-1.5 max-h-48 overflow-y-auto">
+                {allPlayers.map((p) => (
+                  <button key={p.id} onClick={() => setMotmId(p.id)}
+                    className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 text-sm transition ${
+                      motmId === p.id ? "border-yellow-400 bg-yellow-400/10 text-foreground" : "border-border bg-background hover:border-yellow-400/40"
+                    }`}>
+                    <PlayerAvatar member={p} size="sm" />
+                    <span className="font-medium flex-1 text-left">{p.player_name}</span>
+                    {motmId === p.id && <Star className="h-4 w-4 text-yellow-400 fill-yellow-400 shrink-0" />}
+                  </button>
+                ))}
+              </div>
               <button onClick={saveMotm} disabled={!motmId || saving}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:brightness-110 disabled:opacity-50">
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:brightness-110 disabled:opacity-50">
                 <Star className="h-4 w-4" /> {saving ? "Saving…" : "Save Man of the Match"}
               </button>
             </div>
           )}
         </div>
         <Link to="/match/$matchId" params={{ matchId }}
-          className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-md border border-border bg-card px-4 py-2.5 text-sm font-semibold transition hover:border-primary/40">
+          className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-semibold transition hover:border-primary/40">
           <Eye className="h-4 w-4" /> View full scorecard
         </Link>
       </main>
