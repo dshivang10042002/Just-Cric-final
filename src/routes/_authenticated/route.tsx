@@ -1,4 +1,4 @@
-import { createFileRoute, Outlet, redirect } from '@tanstack/react-router';
+﻿import { createFileRoute, Outlet, redirect } from '@tanstack/react-router';
 import { supabase } from '@/integrations/supabase/client';
 
 export const Route = createFileRoute('/_authenticated')({
@@ -10,9 +10,5 @@ export const Route = createFileRoute('/_authenticated')({
     }
     return { user: data.user };
   },
-  component: () => (
-    <div>
-      <Outlet />
-    </div>
-  ),
+  component: () => (<div><Outlet /></div>),
 });
