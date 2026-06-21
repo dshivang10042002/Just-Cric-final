@@ -1,7 +1,6 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
-import { BottomNav } from "@/components/layout/BottomNav";
-
+ 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
   beforeLoad: async () => {
@@ -12,9 +11,8 @@ export const Route = createFileRoute("/_authenticated")({
     return { user: data.user };
   },
   component: () => (
-    <div className="pb-20 md:pb-0">
+    <div>
       <Outlet />
-      <BottomNav />
     </div>
   ),
 });
