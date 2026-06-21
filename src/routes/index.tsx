@@ -74,27 +74,6 @@ function Landing() {
         </div>
       </section>
  
-      {/* ── Features ── */}
-      <section id="features" className="mx-auto max-w-7xl px-4 py-20 sm:px-6">
-        <div className="mb-12 text-center">
-          <h2 className="font-display text-4xl tracking-tight sm:text-5xl">Built for every cricket team</h2>
-          <p className="mt-3 text-muted-foreground">From toss to trophy — JustCric handles it.</p>
-        </div>
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            { title: "Live Scoring", desc: "Ball-by-ball input with real-time updates to spectators. Works perfectly on mobile at the ground.", tone: "primary" },
-            { title: "Tournament Manager", desc: "Knockout brackets, league tables, auto fixtures. Run your tournament without spreadsheets.", tone: "accent" },
-            { title: "Player Profiles", desc: "Career stats, charts, batting & bowling history. Share your profile with one tap.", tone: "primary" },
-            { title: "Stats & Leaderboards", desc: "Top run-scorers, wicket-takers, best figures. Filter by tournament, week or all time.", tone: "accent" },
-          ].map((f) => (
-            <div key={f.title} className="group relative overflow-hidden rounded-xl border border-border bg-card p-6 shadow-elevate transition hover:border-primary/30">
-              <div className={`absolute -right-8 -top-8 h-24 w-24 rounded-full blur-2xl transition ${f.tone === "primary" ? "bg-primary/10 group-hover:bg-primary/15" : "bg-[color:var(--gold)]/15 group-hover:bg-[color:var(--gold)]/25"}`} />
-              <h3 className="font-display text-2xl tracking-tight">{f.title}</h3>
-              <p className="mt-2 text-sm text-muted-foreground">{f.desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
  
       {/* ── Pricing ── */}
       <section id="pricing" className="mx-auto max-w-3xl px-4 py-20 text-center sm:px-6">
