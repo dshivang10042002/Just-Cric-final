@@ -27,9 +27,25 @@ export function Navbar() {
   const menuRef = useRef<HTMLDivElement>(null);
  
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUser(data.user));
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setUser(s?.user ?? null));
-    return () => sub.subscription.unsubscribe();
+    // getSession is more reliable right after OAuth redirect
+    supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null));
+ 
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      setUser(session?.user ?? null);
+    });
+ 
+    // Retry after 800ms — catches cases where session cookie isn't
+    // available on first mount after Google OAuth redirect
+    const retry = setTimeout(() => {
+      supabase.auth.getSession().then(({ data }) => {
+        if (data.session?.user) setUser(data.session.user);
+      });
+    }, 800);
+ 
+    return () => {
+      sub.subscription.unsubscribe();
+      clearTimeout(retry);
+    };
   }, []);
  
   // Close on outside click
