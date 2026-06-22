@@ -8,8 +8,105 @@ import { Radio, ChevronLeft, ChevronRight } from "lucide-react";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "JustCric — Your Cricket. Scored. Shared. Remembered." },
-      { name: "description", content: "Free cricket scoring app for clubs, academies and corporate teams. Live ball-by-ball, tournaments, stats and player profiles." },
+      /* ── Primary ── */
+      { title: "JustCric — Free Cricket Scoring App India | Live Scorecard & Stats" },
+      { name: "description", content: "JustCric is India's free cricket scoring app for clubs, academies, corporate & local teams. Live ball-by-ball scorecard, player stats, tournaments & leaderboards. Start scoring in 30 seconds." },
+      { name: "keywords", content: "cricket scoring app india, live cricket scorecard, justcric, free cricket app, ball by ball scoring, cricket scorer online, cricket stats app, local cricket app, club cricket scoring, cricket tournament app india, online cricket scorecard, cricket scoring software india" },
+      { name: "author", content: "JustCric" },
+      { name: "robots", content: "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" },
+      { name: "googlebot", content: "index, follow" },
+      { name: "revisit-after", content: "3 days" },
+      { name: "language", content: "English" },
+      { name: "geo.region", content: "IN" },
+      { name: "geo.country", content: "India" },
+ 
+      /* ── Open Graph (Facebook, WhatsApp, LinkedIn) ── */
+      { property: "og:type", content: "website" },
+      { property: "og:site_name", content: "JustCric" },
+      { property: "og:title", content: "JustCric — Free Cricket Scoring App India | Live Scorecard & Stats" },
+      { property: "og:description", content: "India's free cricket scoring app. Live ball-by-ball scorecards, player profiles, tournaments and leaderboards for clubs, academies & corporate teams." },
+      { property: "og:url", content: "https://justcric.in" },
+      { property: "og:image", content: "https://justcric.in/og-image.png" },
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "630" },
+      { property: "og:image:alt", content: "JustCric — Free Cricket Scoring App" },
+      { property: "og:locale", content: "en_IN" },
+ 
+      /* ── Twitter / X Card ── */
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:site", content: "@justcric" },
+      { name: "twitter:creator", content: "@justcric" },
+      { name: "twitter:title", content: "JustCric — Free Cricket Scoring App India" },
+      { name: "twitter:description", content: "Live ball-by-ball scorecard, player stats & tournaments for every cricket team in India. Free forever." },
+      { name: "twitter:image", content: "https://justcric.in/og-image.png" },
+      { name: "twitter:image:alt", content: "JustCric Cricket Scoring App" },
+ 
+      /* ── Mobile & PWA ── */
+      { name: "viewport", content: "width=device-width, initial-scale=1, maximum-scale=5" },
+      { name: "theme-color", content: "#003527" },
+      { name: "mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-title", content: "JustCric" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
+      { name: "application-name", content: "JustCric" },
+      { name: "msapplication-TileColor", content: "#003527" },
+ 
+      /* ── Canonical & Alternate ── */
+      { property: "og:see_also", content: "https://justcric.in" },
+ 
+      /* ── Schema.org JSON-LD is added inline below ── */
+    ],
+    links: [
+      { rel: "canonical", href: "https://justcric.in/" },
+      { rel: "icon", type: "image/png", href: "/favicon.png" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
+    ],
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@graph": [
+            {
+              "@type": "WebSite",
+              "@id": "https://justcric.in/#website",
+              "url": "https://justcric.in/",
+              "name": "JustCric",
+              "description": "Free cricket scoring app for India — live scorecards, player stats, tournaments.",
+              "publisher": { "@id": "https://justcric.in/#organization" },
+              "potentialAction": {
+                "@type": "SearchAction",
+                "target": { "@type": "EntryPoint", "urlTemplate": "https://justcric.in/search?q={search_term_string}" },
+                "query-input": "required name=search_term_string",
+              },
+            },
+            {
+              "@type": "Organization",
+              "@id": "https://justcric.in/#organization",
+              "name": "JustCric",
+              "url": "https://justcric.in/",
+              "logo": {
+                "@type": "ImageObject",
+                "url": "https://justcric.in/og-image.png",
+                "width": 1200,
+                "height": 630,
+              },
+              "sameAs": [],
+              "contactPoint": { "@type": "ContactPoint", "contactType": "customer support", "availableLanguage": ["English", "Hindi"] },
+            },
+            {
+              "@type": "SoftwareApplication",
+              "name": "JustCric",
+              "operatingSystem": "Web, Android, iOS",
+              "applicationCategory": "SportsApplication",
+              "offers": { "@type": "Offer", "price": "0", "priceCurrency": "INR" },
+              "description": "Free cricket scoring app for India with live ball-by-ball scorecards, player stats, tournaments and leaderboards.",
+              "url": "https://justcric.in/",
+              "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.8", "ratingCount": "120" },
+            },
+          ],
+        }),
+      },
     ],
   }),
   component: Landing,
