@@ -1,0 +1,86 @@
+# ============================================================
+#  JustCric — https://justcric.in
+#  robots.txt | Updated: June 2026
+# ============================================================
+ 
+# ── Allow all well-behaved crawlers ──────────────────────────
+User-agent: *
+Allow: /
+Allow: /auth
+Allow: /match/
+Allow: /players/
+ 
+# Block all authenticated / private app pages
+Disallow: /dashboard
+Disallow: /dashboard/
+Disallow: /matches
+Disallow: /matches/
+Disallow: /teams
+Disallow: /teams/
+Disallow: /tournaments
+Disallow: /tournaments/
+Disallow: /feed
+Disallow: /feed/
+Disallow: /rankings
+Disallow: /rankings/
+Disallow: /leaderboard
+Disallow: /leaderboard/
+Disallow: /search
+Disallow: /search/
+Disallow: /profile
+Disallow: /profile/
+Disallow: /join-team
+Disallow: /join-team/
+ 
+# Block internal / technical paths
+Disallow: /api/
+Disallow: /_build/
+Disallow: /__nitro/
+Disallow: /.well-known/
+Disallow: /cdn-cgi/
+ 
+# ── Google ───────────────────────────────────────────────────
+User-agent: Googlebot
+Allow: /
+Allow: /auth
+Allow: /match/
+Allow: /players/
+Crawl-delay: 1
+ 
+User-agent: Googlebot-Image
+Allow: /
+ 
+# ── Bing ─────────────────────────────────────────────────────
+User-agent: Bingbot
+Allow: /
+Crawl-delay: 2
+ 
+# ── DuckDuckGo ───────────────────────────────────────────────
+User-agent: DuckDuckBot
+Allow: /
+Crawl-delay: 2
+ 
+# ── Block known bad / scraper bots ───────────────────────────
+User-agent: AhrefsBot
+Disallow: /
+ 
+User-agent: SemrushBot
+Disallow: /
+ 
+User-agent: MJ12bot
+Disallow: /
+ 
+User-agent: DotBot
+Disallow: /
+ 
+User-agent: BLEXBot
+Disallow: /
+ 
+User-agent: PetalBot
+Disallow: /
+ 
+# ── Sitemap location ─────────────────────────────────────────
+Sitemap: https://justcric.in/sitemap.xml
+ 
+# ── Host canonical ───────────────────────────────────────────
+Host: justcric.in
