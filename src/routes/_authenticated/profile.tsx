@@ -4,12 +4,12 @@ import { toast } from "sonner";
 import { Navbar } from "@/components/layout/Navbar";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, Camera, Loader2 } from "lucide-react";
-
+ 
 export const Route = createFileRoute("/_authenticated/profile")({
   head: () => ({ meta: [{ title: "My profile — JustCric" }] }),
   component: ProfilePage,
 });
-
+ 
 type Profile = {
   id: string;
   username: string | null;
@@ -21,8 +21,8 @@ type Profile = {
   batting_style: string | null;
   bowling_style: string | null;
 };
-
-
+ 
+ 
 const ROLES = ["Batter", "Bowler", "All-rounder", "Wicket-keeper"];
 const BAT = ["Right-handed", "Left-handed"];
 const BOWL = [
@@ -35,13 +35,13 @@ const BOWL = [
   "Right-arm leg-spin",
   "Left-arm chinaman",
 ];
-
+ 
 function ProfilePage() {
   const [p, setP] = useState<Profile | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-
+ 
   const load = async () => {
     const { data: u } = await supabase.auth.getUser();
     if (!u.user) return;
@@ -63,14 +63,14 @@ function ProfilePage() {
         bowling_style: null,
       },
     );
-
-
+ 
+ 
   };
-
+ 
   useEffect(() => {
     load();
   }, []);
-
+ 
   const upload = async (file: File) => {
     if (!p) return;
     if (file.size > 4 * 1024 * 1024) {
@@ -96,7 +96,7 @@ function ProfilePage() {
     setP({ ...p, avatar_url: signed.signedUrl });
     toast.success("Photo uploaded — don't forget to save");
   };
-
+ 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!p) return;
@@ -122,9 +122,8 @@ function ProfilePage() {
     } as never;
     const { error } = await supabase
       .from("profiles")
-      .update(updatePayload)
-      .eq("id", p.id);
-
+      .upsert(Object.assign({ id: p.id }, updatePayload) as never, { onConflict: "id" });
+ 
     setSaving(false);
     if (error) {
       if (error.message.includes("profiles_username_lower_idx")) {
@@ -135,10 +134,12 @@ function ProfilePage() {
       }
       return toast.error(error.message);
     }
-    toast.success("Profile saved");
-
+    toast.success("Profile saved ✓");
+    // Reload to confirm data persisted
+    load();
+ 
   };
-
+ 
   if (!p) {
     return (
       <div className="min-h-screen bg-background">
@@ -149,9 +150,9 @@ function ProfilePage() {
       </div>
     );
   }
-
+ 
   const initial = (p.full_name || p.username || "?").slice(0, 1).toUpperCase();
-
+ 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -177,7 +178,7 @@ function ProfilePage() {
             </Link>
           </p>
         )}
-
+ 
         <form onSubmit={save} className="mt-6 space-y-5 rounded-xl border border-border bg-card p-6">
           {/* Avatar */}
           <div className="flex items-center gap-5">
@@ -214,7 +215,7 @@ function ProfilePage() {
               JPG or PNG, up to 4MB. Square images look best.
             </div>
           </div>
-
+ 
           <Field label="Username (your @id)">
             <input
               value={p.username ?? ""}
@@ -224,7 +225,7 @@ function ProfilePage() {
               maxLength={20}
             />
           </Field>
-
+ 
           <Field label="Full name">
             <input
               value={p.full_name ?? ""}
@@ -234,7 +235,7 @@ function ProfilePage() {
               maxLength={60}
             />
           </Field>
-
+ 
           <div className="grid gap-5 sm:grid-cols-2">
             <Field label="City">
               <input
@@ -258,7 +259,7 @@ function ProfilePage() {
               </select>
             </Field>
           </div>
-
+ 
           <Field label="Phone (so captains can invite you)">
             <input
               type="tel"
@@ -273,9 +274,9 @@ function ProfilePage() {
               Only captains adding you to a team can use this — it&apos;s not shown publicly.
             </span>
           </Field>
-
-
-
+ 
+ 
+ 
           <div className="grid gap-5 sm:grid-cols-2">
             <Field label="Batting style">
               <select
@@ -302,7 +303,7 @@ function ProfilePage() {
               </select>
             </Field>
           </div>
-
+ 
           <button
             type="submit"
             disabled={saving || uploading}
@@ -315,7 +316,7 @@ function ProfilePage() {
     </div>
   );
 }
-
+ 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
