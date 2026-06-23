@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { supabase } from "@/integrations/supabase/client";
 import { FollowButton } from "@/components/FollowButton";
-import { Radio, Star } from "lucide-react";
+import { Radio, Star, Zap, Loader2 } from "lucide-react";
  
 export const Route = createFileRoute("/match/$matchId")({
   ssr: false,
@@ -67,6 +67,22 @@ function PublicScorecard() {
   const [motmProfile, setMotmProfile] = useState<MotmProfile | null>(null);
   const [motmMember, setMotmMember] = useState<Member | null>(null);
   const [tab, setTab] = useState<Tab>("live");
+  const [myMemberId, setMyMemberId] = useState<string | null>(null);
+  const [myInsight, setMyInsight] = useState<string | null>(null);
+  const [loadingInsight, setLoadingInsight] = useState(false);
+ 
+  // Load logged-in user's member id for this match
+  useEffect(() => {
+    supabase.auth.getSession().then(async ({ data }) => {
+      const userId = data.session?.user?.id;
+      if (!userId) return;
+      const { data: mems } = await supabase
+        .from("team_members")
+        .select("id")
+        .eq("profile_id", userId);
+      if (mems?.length) setMyMemberId((mems as { id: string }[])[0].id);
+    });
+  }, []);
  
   const load = async () => {
     const { data: m } = await supabase
@@ -217,7 +233,7 @@ function PublicScorecard() {
         {tab === "live" && <LiveTab match={match} innings={innings} currentInn={currentInn} balls={balls} players={players} />}
         {tab === "scorecard" && <ScorecardTab match={match} innings={innings} balls={balls} players={players} />}
         {tab === "commentary" && <CommentaryTab innings={innings} balls={balls} players={players} match={match} />}
-        {tab === "summary" && <SummaryTab match={match} innings={innings} balls={balls} players={players} motmMember={motmMember} motmProfile={motmProfile} />}
+        {tab === "summary" && <SummaryTab match={match} innings={innings} balls={balls} players={players} motmMember={motmMember} motmProfile={motmProfile} myMemberId={myMemberId} myInsight={myInsight} loadingInsight={loadingInsight} setMyInsight={setMyInsight} setLoadingInsight={setLoadingInsight} matchId={matchId} />}
         {tab === "squads" && <SquadsTab match={match} squad={squad} />}
       </main>
     </div>
@@ -494,10 +510,72 @@ function CommentaryTab({ innings, balls, players, match }: { innings: Innings[];
 }
  
 /* ─── Summary + MOTM ─── */
-function SummaryTab({ match, innings, balls, players, motmMember, motmProfile }: {
+function SummaryTab({ match, innings, balls, players, motmMember, motmProfile, myMemberId, myInsight, loadingInsight, setMyInsight, setLoadingInsight, matchId }: {
   match: Match; innings: Innings[]; balls: Ball[]; players: Record<string, Member>;
   motmMember: Member | null; motmProfile: MotmProfile | null;
+  myMemberId: string | null; myInsight: string | null; loadingInsight: boolean;
+  setMyInsight: (v: string) => void; setLoadingInsight: (v: boolean) => void;
+  matchId: string;
 }) {
+  // Build this player's contribution for the AI prompt
+  const myContrib = (() => {
+    if (!myMemberId) return null;
+    const myBalls = balls.filter((b) => b.batter_id === myMemberId || b.bowler_id === myMemberId || b.dismissed_player_id === myMemberId);
+    if (!myBalls.length) return null;
+    let bRuns = 0, bBalls = 0, bFours = 0, bSixes = 0, batOut = false;
+    myBalls.filter((b) => b.batter_id === myMemberId).forEach((b) => {
+      if (b.extra_type !== "wide") bBalls++;
+      const isBat = b.extra_type !== "wide" && b.extra_type !== "bye" && b.extra_type !== "legbye";
+      if (isBat) { const r = b.extra_type === "noball" ? b.runs - 1 : b.runs; bRuns += r; if (r === 4) bFours++; if (r === 6) bSixes++; }
+    });
+    if (myBalls.some((b) => b.dismissed_player_id === myMemberId && b.is_wicket)) batOut = true;
+    let bowlRuns = 0, bowlLegal = 0, bowlWkts = 0;
+    myBalls.filter((b) => b.bowler_id === myMemberId).forEach((b) => {
+      bowlRuns += b.runs;
+      if (b.extra_type !== "wide" && b.extra_type !== "noball") bowlLegal++;
+      if (b.is_wicket && b.wicket_type !== "runout" && b.wicket_type !== "retired_hurt") bowlWkts++;
+    });
+    let catches = 0, runouts = 0;
+    myBalls.forEach((b) => {
+      if (!b.is_wicket) return;
+      if ((b.wicket_type === "caught" || b.wicket_type === "caught_behind") && b.bowler_id === myMemberId) catches++;
+      if (b.wicket_type === "runout" && b.dismissed_player_id === myMemberId) runouts++;
+    });
+    return { bRuns, bBalls, bFours, bSixes, batOut, bowlLegal, bowlRuns, bowlWkts, catches, runouts };
+  })();
+ 
+  const generateInsight = async () => {
+    if (!myContrib || loadingInsight || myInsight) return;
+    setLoadingInsight(true);
+    const c = myContrib;
+    const prompt = `You are an enthusiastic cricket coach giving personal post-match feedback. Write a SHORT (2-3 sentences, max 70 words), MOTIVATING and SPECIFIC message for this player based on their match contribution.
+ 
+Their stats:
+${c.bBalls > 0 ? `Batting: ${c.bRuns} runs off ${c.bBalls} balls (${c.bFours} fours, ${c.bSixes} sixes). ${c.batOut ? "Got out." : "Remained not out."}` : "Did not bat."}
+${c.bowlLegal > 0 ? `Bowling: ${Math.floor(c.bowlLegal/6)}.${c.bowlLegal%6} overs, ${c.bowlRuns} runs, ${c.bowlWkts} wickets.` : "Did not bowl."}
+${c.catches + c.runouts > 0 ? `Fielding: ${c.catches} catch(es), ${c.runouts} run out(s).` : ""}
+Match result: ${match.result_text ?? "Unknown"}
+ 
+Rules:
+- Write in second person (You...)
+- Be specific about their numbers, not generic
+- Find something genuinely positive even in modest stats
+- End with one forward-looking motivational line
+- Never use clichés like "great effort" alone`;
+ 
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 1000, messages: [{ role: "user", content: prompt }] }),
+      });
+      const data = await res.json();
+      setMyInsight(data.content?.[0]?.text ?? "You played your part today — keep building on it!");
+    } catch {
+      setMyInsight("You gave it your all out there. Every match adds to your game — keep going!");
+    }
+    setLoadingInsight(false);
+  };
   const batRunsByPlayer = new Map<string, number>();
   const wktsByPlayer = new Map<string, number>();
   balls.forEach((b) => {
@@ -517,6 +595,65 @@ function SummaryTab({ match, innings, balls, players, motmMember, motmProfile }:
  
   return (
     <div className="space-y-4">
+      {/* Personal motivational insight — only shown to logged-in player */}
+      {myMemberId && myContrib && match.status === "completed" && (
+        <div className="rounded-xl border border-primary/25 bg-gradient-to-br from-primary/10 to-primary/5 p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-primary font-bold">
+              <Zap className="h-3.5 w-3.5" /> Your Performance
+            </div>
+            {!myInsight && !loadingInsight && (
+              <button onClick={generateInsight}
+                className="rounded-full bg-primary px-3 py-1 text-[11px] font-semibold text-primary-foreground transition hover:brightness-110 active:scale-95">
+                Get Analysis
+              </button>
+            )}
+          </div>
+ 
+          {/* Quick stat chips */}
+          <div className="flex flex-wrap gap-2 mb-3">
+            {myContrib.bBalls > 0 && (
+              <span className="rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold">
+                🏏 {myContrib.bRuns} runs ({myContrib.bBalls}b)
+                {myContrib.bSixes > 0 && ` · ${myContrib.bSixes}×6`}
+                {myContrib.bFours > 0 && ` · ${myContrib.bFours}×4`}
+              </span>
+            )}
+            {myContrib.bowlLegal > 0 && (
+              <span className="rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold">
+                🎳 {myContrib.bowlWkts}W/{myContrib.bowlRuns}R ({Math.floor(myContrib.bowlLegal/6)}.{myContrib.bowlLegal%6} ov)
+              </span>
+            )}
+            {myContrib.catches > 0 && (
+              <span className="rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold">
+                🙌 {myContrib.catches} catch{myContrib.catches > 1 ? "es" : ""}
+              </span>
+            )}
+            {myContrib.runouts > 0 && (
+              <span className="rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold">
+                🏃 {myContrib.runouts} run out{myContrib.runouts > 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
+ 
+          {/* AI insight */}
+          {loadingInsight && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              <span>Analysing your match...</span>
+            </div>
+          )}
+          {myInsight && (
+            <div className="mt-1 rounded-lg bg-card border border-border p-3.5">
+              <p className="text-sm text-foreground leading-relaxed">{myInsight}</p>
+            </div>
+          )}
+          {!myInsight && !loadingInsight && (
+            <p className="text-xs text-muted-foreground">Tap "Get Analysis" for your personal post-match coaching insight.</p>
+          )}
+        </div>
+      )}
+ 
       {/* Result */}
       {match.status === "completed" && match.result_text && (
         <div className="rounded-xl border border-border overflow-hidden">
