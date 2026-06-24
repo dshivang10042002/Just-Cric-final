@@ -15,6 +15,7 @@ const NAV_LINKS = [
   { to: "/feed", label: "Feed", icon: Rss },
   { to: "/rankings", label: "Rankings", icon: TrendingUp },
   { to: "/leaderboard", label: "Stats", icon: BarChart3 },
+  { to: "/my-stats", label: "My KPIs", icon: TrendingUp },
   { to: "/search", label: "Search", icon: Search },
   { to: "/profile", label: "Profile", icon: UserIcon },
 ] as const;
