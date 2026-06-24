@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { supabase } from "@/integrations/supabase/client";
-import { Radio, ChevronLeft, ChevronRight, TrendingUp } from "lucide-react";
+import { Radio, ChevronLeft, ChevronRight } from "lucide-react";
  
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -63,8 +63,18 @@ type LiveMatch = {
   team_b: { name: string; short_name: string | null; jersey_color: string | null } | null;
   innings: { batting_team_id: string; runs: number; wickets: number; balls: number; target: number | null }[];
 };
-type PlayerStat = { id: string; name: string; avatar: string | null; value: number; sub: string; team: string };
+type PlayerStat = {
+  id: string; name: string; avatar: string | null;
+  value: number; sub: string; team: string;
+  role: string | null; city: string | null;
+  batting_style: string | null; bowling_style: string | null;
+  matches: number;
+};
 type RecentPerf = { id: string; matchLabel: string; date: string; playerName: string; avatar: string | null; line: string; type: "bat" | "bowl" | "motm" };
+ 
+/* ─── Map value shape used across stat sections ─── */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type StatMapValue = Record<string, any>;
  
 /* ════════════════════════════════════════
    LANDING PAGE
@@ -273,32 +283,79 @@ function SectionHeader({ title, sub, icon }: { title: string; sub: string; icon:
 }
  
 function PlayerCard({ p, rank, valueLabel }: { p: PlayerStat; rank: number; valueLabel: string }) {
+  const rankColors = ["text-yellow-500", "text-slate-400", "text-amber-600"];
+  const rankBg = ["bg-yellow-400/10 border-yellow-400/30", "bg-slate-400/10 border-slate-400/30", "bg-amber-600/10 border-amber-600/30"];
+  const isTop3 = rank <= 3;
+ 
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 transition hover:border-primary/30">
-      <span className="w-6 shrink-0 text-center font-display text-lg text-muted-foreground">{rank}</span>
-      {p.avatar ? (
-        <img src={p.avatar} alt={p.name} className="h-10 w-10 shrink-0 rounded-full object-cover border border-border" />
-      ) : (
-        <div className="h-10 w-10 shrink-0 grid place-items-center rounded-full bg-primary/15 font-display text-base text-primary">
-          {p.name.slice(0, 1).toUpperCase()}
+    <div className={`relative overflow-hidden rounded-2xl border bg-card transition hover:shadow-lg hover:-translate-y-0.5 ${isTop3 ? rankBg[rank - 1] : "border-border hover:border-primary/30"}`}>
+      {/* Rank badge */}
+      <div className={`absolute top-3 right-3 grid h-7 w-7 place-items-center rounded-full border text-xs font-bold ${isTop3 ? rankBg[rank - 1] + " " + rankColors[rank - 1] : "border-border bg-secondary text-muted-foreground"}`}>
+        {rank}
+      </div>
+ 
+      {/* Top section — avatar + name */}
+      <div className="flex items-center gap-4 p-4 pb-3">
+        <div className="relative shrink-0">
+          {p.avatar ? (
+            <img src={p.avatar} alt={p.name} className="h-16 w-16 rounded-2xl object-cover border-2 border-border shadow-md" />
+          ) : (
+            <div className="h-16 w-16 rounded-2xl grid place-items-center bg-primary/15 border-2 border-primary/20 shadow-md">
+              <span className="font-display text-2xl text-primary">{p.name.slice(0, 1).toUpperCase()}</span>
+            </div>
+          )}
+          {isTop3 && (
+            <div className={`absolute -bottom-1.5 -right-1.5 text-base`}>
+              {rank === 1 ? "🥇" : rank === 2 ? "🥈" : "🥉"}
+            </div>
+          )}
+        </div>
+        <div className="min-w-0 flex-1 pr-8">
+          <div className="font-display text-lg truncate leading-tight">{p.name}</div>
+          <div className="text-xs text-muted-foreground truncate mt-0.5">{p.team}</div>
+          {p.city && <div className="text-[10px] text-muted-foreground/70 mt-0.5">📍 {p.city}</div>}
+        </div>
+      </div>
+ 
+      {/* Stats row */}
+      <div className="border-t border-border/50 grid grid-cols-3 divide-x divide-border/50">
+        <div className="px-3 py-2.5 text-center">
+          <div className={`font-display text-xl tabular-nums ${isTop3 ? rankColors[rank - 1] : "text-primary"}`}>{p.value}</div>
+          <div className="text-[9px] uppercase tracking-wider text-muted-foreground mt-0.5">{valueLabel}</div>
+        </div>
+        <div className="px-3 py-2.5 text-center">
+          <div className="font-display text-xl tabular-nums text-foreground">{p.matches}</div>
+          <div className="text-[9px] uppercase tracking-wider text-muted-foreground mt-0.5">Matches</div>
+        </div>
+        <div className="px-3 py-2.5 text-center">
+          <div className="text-[10px] font-semibold text-foreground truncate mt-1">{p.role ?? "—"}</div>
+          <div className="text-[9px] uppercase tracking-wider text-muted-foreground mt-0.5">Role</div>
+        </div>
+      </div>
+ 
+      {/* Style tags */}
+      {(p.batting_style || p.bowling_style) && (
+        <div className="border-t border-border/50 px-3 py-2 flex flex-wrap gap-1.5">
+          {p.batting_style && (
+            <span className="rounded-full border border-border bg-background px-2 py-0.5 text-[10px] text-muted-foreground">
+              🏏 {p.batting_style}
+            </span>
+          )}
+          {p.bowling_style && (
+            <span className="rounded-full border border-border bg-background px-2 py-0.5 text-[10px] text-muted-foreground">
+              🎳 {p.bowling_style}
+            </span>
+          )}
         </div>
       )}
-      <div className="flex-1 min-w-0">
-        <div className="truncate font-semibold text-sm">{p.name}</div>
-        <div className="text-[10px] text-muted-foreground truncate">{p.team}</div>
-      </div>
-      <div className="text-right shrink-0">
-        <div className="font-display text-xl tabular-nums text-primary">{p.value}</div>
-        <div className="text-[9px] uppercase tracking-widest text-muted-foreground">{valueLabel}</div>
-      </div>
     </div>
   );
 }
  
 function PlayerGrid({ players, valueLabel, loading }: { players: PlayerStat[]; valueLabel: string; loading: boolean }) {
   if (loading) return (
-    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-      {[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="h-16 animate-pulse rounded-xl border border-border bg-card" />)}
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="h-36 animate-pulse rounded-2xl border border-border bg-card" />)}
     </div>
   );
   if (!players.length) return (
@@ -307,7 +364,7 @@ function PlayerGrid({ players, valueLabel, loading }: { players: PlayerStat[]; v
     </div>
   );
   return (
-    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {players.map((p, i) => <PlayerCard key={p.id} p={p} rank={i + 1} valueLabel={valueLabel} />)}
     </div>
   );
@@ -324,31 +381,46 @@ function TopBatters() {
     (async () => {
       const { data } = await supabase
         .from("balls")
-        .select("batter_id, batter_name, runs, extra_type, team_members!balls_batter_id_fkey(player_name, team_id, profiles(avatar_url), teams:team_members_team_id_fkey(name))")
+        .select("batter_id, batter_name, runs, extra_type, innings_id, team_members!balls_batter_id_fkey(player_name, team_id, role, batting_style, bowling_style, profiles(avatar_url, city, batting_style, bowling_style, role), teams:team_members_team_id_fkey(name))")
         .not("batter_id", "is", null)
         .limit(5000);
  
-      const map = new Map<string, { name: string; avatar: string | null; runs: number; team: string }>();
-      (data ?? []).forEach((b: unknown) => {
-        const row = b as { batter_id: string; batter_name: string | null; runs: number; extra_type: string | null; team_members: { player_name: string; profiles: { avatar_url: string | null } | null; teams: { name: string } | null } | null };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const map = new Map<string, StatMapValue>();
+ 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (data as any[] ?? []).forEach((row: any) => {
         if (!row.batter_id) return;
         const isBat = row.extra_type !== "wide" && row.extra_type !== "bye" && row.extra_type !== "legbye";
         if (!isBat) return;
         const r = row.extra_type === "noball" ? row.runs - 1 : row.runs;
-        const existing = map.get(row.batter_id) ?? {
-          name: row.team_members?.player_name ?? row.batter_name ?? "Unknown",
-          avatar: row.team_members?.profiles?.avatar_url ?? null,
+        const tm = row.team_members;
+        const existing: StatMapValue = map.get(row.batter_id) ?? {
+          name: tm?.player_name ?? row.batter_name ?? "Unknown",
+          avatar: tm?.profiles?.avatar_url ?? null,
           runs: 0,
-          team: row.team_members?.teams?.name ?? "—",
+          innings: new Set<string>(),
+          team: tm?.teams?.name ?? "—",
+          role: tm?.profiles?.role ?? tm?.role ?? null,
+          city: tm?.profiles?.city ?? null,
+          batting_style: tm?.profiles?.batting_style ?? tm?.batting_style ?? null,
+          bowling_style: tm?.profiles?.bowling_style ?? tm?.bowling_style ?? null,
         };
         existing.runs += r;
+        existing.innings.add(row.innings_id ?? "");
         map.set(row.batter_id, existing);
       });
  
       const sorted = [...map.entries()]
         .sort((a, b) => b[1].runs - a[1].runs)
         .slice(0, 9)
-        .map(([id, v]) => ({ id, name: v.name, avatar: v.avatar, value: v.runs, sub: `${v.runs} runs`, team: v.team }));
+        .map(([id, v]) => ({
+          id, name: v.name, avatar: v.avatar,
+          value: v.runs, sub: `${v.runs} runs`,
+          team: v.team, role: v.role, city: v.city,
+          batting_style: v.batting_style, bowling_style: v.bowling_style,
+          matches: (v.innings as Set<string>).size,
+        }));
       setPlayers(sorted);
       setLoading(false);
     })();
@@ -373,30 +445,45 @@ function TopBowlers() {
     (async () => {
       const { data } = await supabase
         .from("balls")
-        .select("bowler_id, bowler_name, is_wicket, wicket_type, team_members!balls_bowler_id_fkey(player_name, team_id, profiles(avatar_url), teams:team_members_team_id_fkey(name))")
+        .select("bowler_id, bowler_name, is_wicket, wicket_type, innings_id, team_members!balls_bowler_id_fkey(player_name, team_id, role, batting_style, bowling_style, profiles(avatar_url, city, batting_style, bowling_style, role), teams:team_members_team_id_fkey(name))")
         .eq("is_wicket", true)
         .not("bowler_id", "is", null)
         .limit(5000);
  
-      const map = new Map<string, { name: string; avatar: string | null; wkts: number; team: string }>();
-      (data ?? []).forEach((b: unknown) => {
-        const row = b as { bowler_id: string; bowler_name: string | null; wicket_type: string | null; team_members: { player_name: string; profiles: { avatar_url: string | null } | null; teams: { name: string } | null } | null };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const map = new Map<string, StatMapValue>();
+ 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (data as any[] ?? []).forEach((row: any) => {
         if (!row.bowler_id) return;
         if (row.wicket_type === "runout" || row.wicket_type === "retired_hurt") return;
-        const existing = map.get(row.bowler_id) ?? {
-          name: row.team_members?.player_name ?? row.bowler_name ?? "Unknown",
-          avatar: row.team_members?.profiles?.avatar_url ?? null,
+        const tm = row.team_members;
+        const existing: StatMapValue = map.get(row.bowler_id) ?? {
+          name: tm?.player_name ?? row.bowler_name ?? "Unknown",
+          avatar: tm?.profiles?.avatar_url ?? null,
           wkts: 0,
-          team: row.team_members?.teams?.name ?? "—",
+          innings: new Set<string>(),
+          team: tm?.teams?.name ?? "—",
+          role: tm?.profiles?.role ?? tm?.role ?? null,
+          city: tm?.profiles?.city ?? null,
+          batting_style: tm?.profiles?.batting_style ?? tm?.batting_style ?? null,
+          bowling_style: tm?.profiles?.bowling_style ?? tm?.bowling_style ?? null,
         };
         existing.wkts++;
+        existing.innings.add(row.innings_id ?? "");
         map.set(row.bowler_id, existing);
       });
  
       const sorted = [...map.entries()]
         .sort((a, b) => b[1].wkts - a[1].wkts)
         .slice(0, 9)
-        .map(([id, v]) => ({ id, name: v.name, avatar: v.avatar, value: v.wkts, sub: `${v.wkts} wickets`, team: v.team }));
+        .map(([id, v]) => ({
+          id, name: v.name, avatar: v.avatar,
+          value: v.wkts, sub: `${v.wkts} wickets`,
+          team: v.team, role: v.role, city: v.city,
+          batting_style: v.batting_style, bowling_style: v.bowling_style,
+          matches: (v.innings as Set<string>).size,
+        }));
       setPlayers(sorted);
       setLoading(false);
     })();
@@ -425,19 +512,22 @@ function BestAllRounders() {
         .select("batter_id, bowler_id, batter_name, bowler_name, runs, extra_type, is_wicket, wicket_type, team_members!balls_batter_id_fkey(player_name, profiles(avatar_url), teams:team_members_team_id_fkey(name))")
         .limit(5000);
  
-      const map = new Map<string, { name: string; avatar: string | null; runs: number; wkts: number; team: string }>();
-      const ensure = (id: string, name: string, avatar: string | null, team: string) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const map = new Map<string, StatMapValue>();
+ 
+      const ensure = (id: string, name: string, avatar: string | null, team: string): StatMapValue => {
         if (!map.has(id)) map.set(id, { name, avatar, runs: 0, wkts: 0, team });
         return map.get(id)!;
       };
  
-      (data ?? []).forEach((b: unknown) => {
-        const row = b as { batter_id: string | null; bowler_id: string | null; batter_name: string | null; bowler_name: string | null; runs: number; extra_type: string | null; is_wicket: boolean; wicket_type: string | null; team_members: { player_name: string; profiles: { avatar_url: string | null } | null; teams: { name: string } | null } | null };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (data as any[] ?? []).forEach((row: any) => {
         if (row.batter_id) {
           const isBat = row.extra_type !== "wide" && row.extra_type !== "bye" && row.extra_type !== "legbye";
           if (isBat) {
             const r = row.extra_type === "noball" ? row.runs - 1 : row.runs;
-            const p = ensure(row.batter_id, row.team_members?.player_name ?? row.batter_name ?? "—", row.team_members?.profiles?.avatar_url ?? null, row.team_members?.teams?.name ?? "—");
+            const tm = row.team_members;
+            const p = ensure(row.batter_id, tm?.player_name ?? row.batter_name ?? "—", tm?.profiles?.avatar_url ?? null, tm?.teams?.name ?? "—");
             p.runs += r;
           }
         }
@@ -448,7 +538,12 @@ function BestAllRounders() {
       });
  
       const sorted = [...map.entries()]
-        .map(([id, v]) => ({ id, name: v.name, avatar: v.avatar, team: v.team, score: v.runs + v.wkts * 20, value: v.runs + v.wkts * 20, sub: `${v.runs}R ${v.wkts}W` }))
+        .map(([id, v]) => ({
+          id, name: v.name, avatar: v.avatar, team: v.team,
+          value: v.runs + v.wkts * 20,
+          sub: `${v.runs}R ${v.wkts}W`,
+          role: null, city: null, batting_style: null, bowling_style: null, matches: 0,
+        }))
         .filter((p) => p.value > 0)
         .sort((a, b) => b.value - a.value)
         .slice(0, 9);
@@ -480,11 +575,19 @@ function BestStrikers() {
         .not("batter_id", "is", null)
         .limit(5000);
  
-      const map = new Map<string, { name: string; avatar: string | null; runs: number; balls: number; team: string }>();
-      (data ?? []).forEach((b: unknown) => {
-        const row = b as { batter_id: string; batter_name: string | null; runs: number; extra_type: string | null; team_members: { player_name: string; profiles: { avatar_url: string | null } | null; teams: { name: string } | null } | null };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const map = new Map<string, StatMapValue>();
+ 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (data as any[] ?? []).forEach((row: any) => {
         if (!row.batter_id) return;
-        const p = map.get(row.batter_id) ?? { name: row.team_members?.player_name ?? row.batter_name ?? "—", avatar: row.team_members?.profiles?.avatar_url ?? null, runs: 0, balls: 0, team: row.team_members?.teams?.name ?? "—" };
+        const tm = row.team_members;
+        const p: StatMapValue = map.get(row.batter_id) ?? {
+          name: tm?.player_name ?? row.batter_name ?? "—",
+          avatar: tm?.profiles?.avatar_url ?? null,
+          runs: 0, balls: 0,
+          team: tm?.teams?.name ?? "—",
+        };
         if (row.extra_type !== "wide") p.balls++;
         const isBat = row.extra_type !== "wide" && row.extra_type !== "bye" && row.extra_type !== "legbye";
         if (isBat) { const r = row.extra_type === "noball" ? row.runs - 1 : row.runs; p.runs += r; }
@@ -493,7 +596,12 @@ function BestStrikers() {
  
       const sorted = [...map.entries()]
         .filter(([, v]) => v.balls >= 20)
-        .map(([id, v]) => ({ id, name: v.name, avatar: v.avatar, team: v.team, value: Math.round((v.runs / v.balls) * 100), sub: `${v.runs}R ${v.balls}B` }))
+        .map(([id, v]) => ({
+          id, name: v.name, avatar: v.avatar, team: v.team,
+          value: Math.round((v.runs / v.balls) * 100),
+          sub: `${v.runs}R ${v.balls}B`,
+          role: null, city: null, batting_style: null, bowling_style: null, matches: 0,
+        }))
         .sort((a, b) => b.value - a.value)
         .slice(0, 9);
       setPlayers(sorted);
@@ -518,12 +626,12 @@ function MVPLeaderboard() {
  
   useEffect(() => {
     (async () => {
-      // Get all completed matches with motm
-      const { data: matches } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: matches } = await (supabase as any)
         .from("matches")
         .select("motm_player_id")
         .eq("status", "completed")
-        .not("motm_player_id" as never, "is", null)
+        .not("motm_player_id", "is", null)
         .limit(1000);
  
       const map = new Map<string, number>();
@@ -533,19 +641,29 @@ function MVPLeaderboard() {
  
       if (!map.size) { setLoading(false); return; }
  
-      // Fetch member details
       const ids = [...map.keys()];
       const { data: mems } = await supabase
         .from("team_members")
-        .select("id, player_name, profiles(avatar_url), teams:team_members_team_id_fkey(name)")
+        .select("id, player_name, role, batting_style, bowling_style, profiles(avatar_url, city, role, batting_style, bowling_style), teams:team_members_team_id_fkey(name)")
         .in("id", ids);
  
-      const sorted = (mems ?? [])
-        .map((m: unknown) => {
-          const mem = m as { id: string; player_name: string; profiles: { avatar_url: string | null } | null; teams: { name: string } | null };
-          return { id: mem.id, name: mem.player_name, avatar: mem.profiles?.avatar_url ?? null, value: map.get(mem.id) ?? 0, sub: "", team: mem.teams?.name ?? "—" };
-        })
-        .sort((a, b) => b.value - a.value)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sorted = (mems as any[] ?? [])
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((mem: any) => ({
+          id: mem.id,
+          name: mem.player_name,
+          avatar: mem.profiles?.avatar_url ?? null,
+          value: map.get(mem.id) ?? 0,
+          sub: "",
+          team: mem.teams?.name ?? "—",
+          role: mem.profiles?.role ?? mem.role ?? null,
+          city: mem.profiles?.city ?? null,
+          batting_style: mem.profiles?.batting_style ?? mem.batting_style ?? null,
+          bowling_style: mem.profiles?.bowling_style ?? mem.bowling_style ?? null,
+          matches: map.get(mem.id) ?? 0,
+        }))
+        .sort((a: PlayerStat, b: PlayerStat) => b.value - a.value)
         .slice(0, 9);
       setPlayers(sorted);
       setLoading(false);
@@ -571,7 +689,6 @@ function RecentPerformances() {
     (async () => {
       const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
  
-      // Recently completed matches
       const { data: matches } = await supabase
         .from("matches")
         .select("id, completed_at, result_text, team_a:teams!matches_team_a_id_fkey(name), team_b:teams!matches_team_b_id_fkey(name), motm_player_id")
@@ -583,7 +700,9 @@ function RecentPerformances() {
       if (!matches?.length) { setLoading(false); return; }
  
       const results: RecentPerf[] = [];
-      for (const m of matches as unknown as { id: string; completed_at: string; result_text: string | null; team_a: { name: string } | null; team_b: { name: string } | null; motm_player_id: string | null }[]) {
+ 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const m of matches as any[]) {
         const matchLabel = `${m.team_a?.name ?? "Team A"} vs ${m.team_b?.name ?? "Team B"}`;
         const date = new Date(m.completed_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
  
@@ -592,32 +711,53 @@ function RecentPerformances() {
           const { data: mem } = await supabase.from("team_members")
             .select("id, player_name, profiles(avatar_url)").eq("id", m.motm_player_id).maybeSingle();
           if (mem) {
-            const member = mem as { id: string; player_name: string; profiles: { avatar_url: string | null } | null };
-            results.push({ id: `motm-${m.id}`, matchLabel, date, playerName: member.player_name, avatar: member.profiles?.avatar_url ?? null, line: `🏆 Player of the Match in ${matchLabel}`, type: "motm" });
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const member = mem as any;
+            results.push({
+              id: `motm-${m.id}`, matchLabel, date,
+              playerName: member.player_name,
+              avatar: member.profiles?.avatar_url ?? null,
+              line: `🏆 Player of the Match in ${matchLabel}`,
+              type: "motm",
+            });
           }
         }
  
         // Top batter of this match
+        const { data: inningsRows } = await supabase.from("innings").select("id").eq("match_id", m.id);
+        const inningsIds = (inningsRows ?? []).map((i: { id: string }) => i.id);
+ 
         const { data: balls } = await supabase.from("balls")
           .select("batter_id, batter_name, runs, extra_type, team_members!balls_batter_id_fkey(player_name, profiles(avatar_url))")
-          .in("innings_id", (await supabase.from("innings").select("id").eq("match_id", m.id)).data?.map((i: { id: string }) => i.id) ?? [])
+          .in("innings_id", inningsIds)
           .not("batter_id", "is", null);
  
-        const batMap = new Map<string, { name: string; avatar: string | null; runs: number }>();
-        (balls ?? []).forEach((b: unknown) => {
-          const row = b as { batter_id: string; batter_name: string | null; runs: number; extra_type: string | null; team_members: { player_name: string; profiles: { avatar_url: string | null } | null } | null };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const batMap = new Map<string, StatMapValue>();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (balls as any[] ?? []).forEach((row: any) => {
           if (!row.batter_id) return;
           const isBat = row.extra_type !== "wide" && row.extra_type !== "bye" && row.extra_type !== "legbye";
           if (!isBat) return;
           const r = row.extra_type === "noball" ? row.runs - 1 : row.runs;
-          const p = batMap.get(row.batter_id) ?? { name: row.team_members?.player_name ?? row.batter_name ?? "—", avatar: row.team_members?.profiles?.avatar_url ?? null, runs: 0 };
+          const p: StatMapValue = batMap.get(row.batter_id) ?? {
+            name: row.team_members?.player_name ?? row.batter_name ?? "—",
+            avatar: row.team_members?.profiles?.avatar_url ?? null,
+            runs: 0,
+          };
           p.runs += r;
           batMap.set(row.batter_id, p);
         });
  
         const topBat = [...batMap.entries()].sort((a, b) => b[1].runs - a[1].runs)[0];
         if (topBat && topBat[1].runs >= 30) {
-          results.push({ id: `bat-${m.id}-${topBat[0]}`, matchLabel, date, playerName: topBat[1].name, avatar: topBat[1].avatar, line: `🏏 ${topBat[1].runs} runs in ${matchLabel}`, type: "bat" });
+          results.push({
+            id: `bat-${m.id}-${topBat[0]}`, matchLabel, date,
+            playerName: topBat[1].name,
+            avatar: topBat[1].avatar,
+            line: `🏏 ${topBat[1].runs} runs in ${matchLabel}`,
+            type: "bat",
+          });
         }
       }
  
