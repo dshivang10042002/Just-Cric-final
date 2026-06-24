@@ -3,12 +3,11 @@ import { useEffect, useRef, useState } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { supabase } from "@/integrations/supabase/client";
-import { Radio, ChevronLeft, ChevronRight } from "lucide-react";
+import { Radio, ChevronLeft, ChevronRight, TrendingUp } from "lucide-react";
  
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      /* ── Primary ── */
       { title: "JustCric — Free Cricket Scoring App India | Live Scorecard & Stats" },
       { name: "description", content: "JustCric is India's free cricket scoring app for clubs, academies, corporate & local teams. Live ball-by-ball scorecard, player stats, tournaments & leaderboards. Start scoring in 30 seconds." },
       { name: "keywords", content: "cricket scoring app india, live cricket scorecard, justcric, free cricket app, ball by ball scoring, cricket scorer online, cricket stats app, local cricket app, club cricket scoring, cricket tournament app india, online cricket scorecard, cricket scoring software india" },
@@ -19,8 +18,6 @@ export const Route = createFileRoute("/")({
       { name: "language", content: "English" },
       { name: "geo.region", content: "IN" },
       { name: "geo.country", content: "India" },
- 
-      /* ── Open Graph (Facebook, WhatsApp, LinkedIn) ── */
       { property: "og:type", content: "website" },
       { property: "og:site_name", content: "JustCric" },
       { property: "og:title", content: "JustCric — Free Cricket Scoring App India | Live Scorecard & Stats" },
@@ -29,37 +26,18 @@ export const Route = createFileRoute("/")({
       { property: "og:image", content: "https://justcric.in/og-image.png" },
       { property: "og:image:width", content: "1200" },
       { property: "og:image:height", content: "630" },
-      { property: "og:image:alt", content: "JustCric — Free Cricket Scoring App" },
       { property: "og:locale", content: "en_IN" },
- 
-      /* ── Twitter / X Card ── */
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@justcric" },
-      { name: "twitter:creator", content: "@justcric" },
       { name: "twitter:title", content: "JustCric — Free Cricket Scoring App India" },
       { name: "twitter:description", content: "Live ball-by-ball scorecard, player stats & tournaments for every cricket team in India. Free forever." },
       { name: "twitter:image", content: "https://justcric.in/og-image.png" },
-      { name: "twitter:image:alt", content: "JustCric Cricket Scoring App" },
- 
-      /* ── Mobile & PWA ── */
-      { name: "viewport", content: "width=device-width, initial-scale=1, maximum-scale=5" },
       { name: "theme-color", content: "#003527" },
       { name: "mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-title", content: "JustCric" },
-      { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
-      { name: "application-name", content: "JustCric" },
-      { name: "msapplication-TileColor", content: "#003527" },
- 
-      /* ── Canonical & Alternate ── */
-      { property: "og:see_also", content: "https://justcric.in" },
- 
-      /* ── Schema.org JSON-LD is added inline below ── */
     ],
     links: [
       { rel: "canonical", href: "https://justcric.in/" },
-      { rel: "icon", type: "image/png", href: "/favicon.png" },
-      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
     ],
     scripts: [
       {
@@ -67,43 +45,8 @@ export const Route = createFileRoute("/")({
         children: JSON.stringify({
           "@context": "https://schema.org",
           "@graph": [
-            {
-              "@type": "WebSite",
-              "@id": "https://justcric.in/#website",
-              "url": "https://justcric.in/",
-              "name": "JustCric",
-              "description": "Free cricket scoring app for India — live scorecards, player stats, tournaments.",
-              "publisher": { "@id": "https://justcric.in/#organization" },
-              "potentialAction": {
-                "@type": "SearchAction",
-                "target": { "@type": "EntryPoint", "urlTemplate": "https://justcric.in/search?q={search_term_string}" },
-                "query-input": "required name=search_term_string",
-              },
-            },
-            {
-              "@type": "Organization",
-              "@id": "https://justcric.in/#organization",
-              "name": "JustCric",
-              "url": "https://justcric.in/",
-              "logo": {
-                "@type": "ImageObject",
-                "url": "https://justcric.in/og-image.png",
-                "width": 1200,
-                "height": 630,
-              },
-              "sameAs": [],
-              "contactPoint": { "@type": "ContactPoint", "contactType": "customer support", "availableLanguage": ["English", "Hindi"] },
-            },
-            {
-              "@type": "SoftwareApplication",
-              "name": "JustCric",
-              "operatingSystem": "Web, Android, iOS",
-              "applicationCategory": "SportsApplication",
-              "offers": { "@type": "Offer", "price": "0", "priceCurrency": "INR" },
-              "description": "Free cricket scoring app for India with live ball-by-ball scorecards, player stats, tournaments and leaderboards.",
-              "url": "https://justcric.in/",
-              "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.8", "ratingCount": "120" },
-            },
+            { "@type": "WebSite", "@id": "https://justcric.in/#website", "url": "https://justcric.in/", "name": "JustCric", "description": "Free cricket scoring app for India." },
+            { "@type": "SoftwareApplication", "name": "JustCric", "operatingSystem": "Web", "applicationCategory": "SportsApplication", "offers": { "@type": "Offer", "price": "0", "priceCurrency": "INR" } },
           ],
         }),
       },
@@ -112,20 +55,20 @@ export const Route = createFileRoute("/")({
   component: Landing,
 });
  
-/* ─────────────────────────────────────────
-   TYPES
-───────────────────────────────────────── */
-type LiveMatchRow = {
+/* ─── Types ─── */
+type LiveMatch = {
   id: string; overs: number; venue: string | null; current_innings: number;
   team_a_id: string; team_b_id: string;
   team_a: { name: string; short_name: string | null; jersey_color: string | null } | null;
   team_b: { name: string; short_name: string | null; jersey_color: string | null } | null;
   innings: { batting_team_id: string; runs: number; wickets: number; balls: number; target: number | null }[];
 };
+type PlayerStat = { id: string; name: string; avatar: string | null; value: number; sub: string; team: string };
+type RecentPerf = { id: string; matchLabel: string; date: string; playerName: string; avatar: string | null; line: string; type: "bat" | "bowl" | "motm" };
  
-/* ─────────────────────────────────────────
+/* ════════════════════════════════════════
    LANDING PAGE
-───────────────────────────────────────── */
+════════════════════════════════════════ */
 function Landing() {
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -141,7 +84,7 @@ function Landing() {
           <div className="mx-auto max-w-3xl text-center">
             <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground shadow-elevate">
               <span className="h-2 w-2 animate-pulse rounded-full bg-destructive" />
-              <span>Live ball-by-ball scoring for every team</span>
+              Live ball-by-ball scoring for every team
             </div>
             <h1 className="font-display text-5xl leading-[0.95] tracking-tight sm:text-7xl md:text-8xl">
               Your Cricket.<br />
@@ -157,28 +100,34 @@ function Landing() {
                 className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3.5 text-base font-bold text-primary-foreground transition active:scale-95 hover:brightness-110 glow-primary">
                 Start Scoring Free <ArrowRight />
               </Link>
-              <a href="#matches" className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-6 py-3.5 text-base font-semibold text-foreground transition active:scale-95 hover:bg-secondary">
+              <a href="#live" className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-6 py-3.5 text-base font-semibold transition active:scale-95 hover:bg-secondary">
                 View Live Matches
               </a>
             </div>
             <p className="mt-5 text-xs text-muted-foreground">Free forever · No credit card · Built for grassroots cricket</p>
           </div>
  
-          {/* Live match slider replacing the mock */}
-          <div className="mt-16">
+          {/* Live match slider */}
+          <div className="mt-16" id="live">
             <HeroLiveSlider />
           </div>
         </div>
       </section>
  
+      {/* ── Stats sections ── */}
+      <div className="mx-auto max-w-7xl px-4 pb-20 sm:px-6 space-y-16">
+        <TopBatters />
+        <TopBowlers />
+        <BestAllRounders />
+        <BestStrikers />
+        <MVPLeaderboard />
+        <RecentPerformances />
+      </div>
  
       {/* ── Pricing ── */}
-      <section id="pricing" className="mx-auto max-w-3xl px-4 py-20 text-center sm:px-6">
+      <section id="pricing" className="mx-auto max-w-3xl px-4 py-16 text-center sm:px-6">
         <h2 className="font-display text-4xl tracking-tight sm:text-5xl">Free at launch</h2>
-        <p className="mt-3 text-muted-foreground">
-          Unlimited matches, scorecards, 3 teams and 2 tournaments — forever free.
-          Premium with advanced analytics and PDF exports coming soon.
-        </p>
+        <p className="mt-3 text-muted-foreground">Unlimited matches, scorecards, 3 teams and 2 tournaments — forever free.</p>
         <div className="mt-8">
           <Link to="/auth" search={{ mode: "register" }}
             className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3.5 font-bold text-primary-foreground transition active:scale-95 hover:brightness-110 glow-primary">
@@ -187,12 +136,11 @@ function Landing() {
         </div>
       </section>
  
-      {/* ── Footer ── */}
       <footer className="border-t border-border">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-4 py-8 text-sm text-muted-foreground sm:flex-row sm:px-6">
           <div><span className="font-display text-lg text-primary">JustCric</span> · © {new Date().getFullYear()}</div>
           <div className="flex gap-5">
-            <a href="#features" className="hover:text-primary">Features</a>
+            <a href="#live" className="hover:text-primary">Live</a>
             <a href="#pricing" className="hover:text-primary">Pricing</a>
           </div>
         </div>
@@ -202,13 +150,11 @@ function Landing() {
   );
 }
  
-/* ─────────────────────────────────────────
+/* ════════════════════════════════════════
    HERO LIVE SLIDER
-   Replaces ScorecardMock — shows real live
-   matches in the same card style as the mock
-───────────────────────────────────────── */
+════════════════════════════════════════ */
 function HeroLiveSlider() {
-  const [rows, setRows] = useState<LiveMatchRow[]>([]);
+  const [rows, setRows] = useState<LiveMatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [idx, setIdx] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -221,53 +167,29 @@ function HeroLiveSlider() {
         .eq("status", "live")
         .order("started_at", { ascending: false })
         .limit(8);
-      setRows((data as unknown as LiveMatchRow[]) ?? []);
+      setRows((data as unknown as LiveMatch[]) ?? []);
       setLoading(false);
     })();
   }, []);
  
-  // Auto-rotate every 5s
   useEffect(() => {
     if (rows.length <= 1) return;
     timerRef.current = setInterval(() => setIdx((i) => (i + 1) % rows.length), 5000);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [rows.length]);
  
-  const prev = () => { setIdx((i) => (i - 1 + rows.length) % rows.length); };
-  const next = () => { setIdx((i) => (i + 1) % rows.length); };
+  if (loading) return <div className="mx-auto max-w-3xl h-[200px] animate-pulse rounded-2xl border border-border bg-card" />;
  
-  if (loading) {
-    return (
-      <div className="mx-auto max-w-3xl">
-        <div className="h-[220px] animate-pulse rounded-2xl border border-border bg-card" />
-      </div>
-    );
-  }
- 
-  if (rows.length === 0) {
-    /* No live matches — show a polished "no matches" placeholder in the same card style */
-    return (
-      <div className="mx-auto max-w-3xl">
-        <div className="relative rounded-2xl border border-border bg-card p-6 shadow-elevate sm:p-8">
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-border" />
-              <span className="text-xs text-muted-foreground">No live matches right now</span>
-            </div>
-            <span className="text-xs text-muted-foreground">JustCric</span>
-          </div>
-          <div className="text-center py-6">
-            <div className="font-display text-4xl text-muted-foreground/30 mb-3">🏏</div>
-            <p className="text-sm text-muted-foreground">Start a match to see it appear here live.</p>
-            <Link to="/auth" search={{ mode: "register" }}
-              className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:brightness-110">
-              Start scoring free
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  if (!rows.length) return (
+    <div className="mx-auto max-w-3xl rounded-2xl border border-border bg-card p-8 text-center">
+      <div className="text-4xl mb-3">🏏</div>
+      <p className="text-sm text-muted-foreground">No live matches right now.</p>
+      <Link to="/auth" search={{ mode: "register" }}
+        className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:brightness-110">
+        Start a match
+      </Link>
+    </div>
+  );
  
   const m = rows[idx];
   const lastInn = m.innings?.[m.innings.length - 1] ?? null;
@@ -278,30 +200,24 @@ function HeroLiveSlider() {
   const crr = lastInn && lastInn.balls > 0 ? ((lastInn.runs / lastInn.balls) * 6).toFixed(2) : "—";
  
   return (
-    <div className="mx-auto max-w-3xl" id="matches">
+    <div className="mx-auto max-w-3xl">
       <Link to="/match/$matchId" params={{ matchId: m.id }}
         className="group relative block rounded-2xl border border-border bg-card p-6 shadow-elevate transition hover:border-primary/30 sm:p-8">
- 
-        {/* Top row */}
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2">
             <span className="flex items-center gap-1.5 rounded-full bg-destructive/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-destructive">
               <Radio className="h-3 w-3 animate-pulse" /> Live
             </span>
-            <span className="text-xs text-muted-foreground">
-              T{m.overs}{m.venue ? ` · ${m.venue}` : ""} · Inns {m.current_innings}
-            </span>
+            <span className="text-xs text-muted-foreground">T{m.overs}{m.venue ? ` · ${m.venue}` : ""}</span>
           </div>
           <span className="font-mono text-xs text-muted-foreground">CRR {crr}</span>
         </div>
- 
-        {/* Score */}
         <div className="flex items-end justify-between">
           <div>
             <div className="text-[11px] uppercase tracking-widest text-muted-foreground font-semibold">{battingTeam?.name}</div>
-            <div className="font-display text-6xl sm:text-7xl mt-0.5">
+            <div className="font-display mt-0.5" style={{ fontSize: "clamp(48px,12vw,72px)", lineHeight: 1 }}>
               <span className="text-[color:var(--gold)]">{lastInn?.runs ?? 0}</span>
-              <span className="text-muted-foreground">/{lastInn?.wickets ?? 0}</span>
+              <span className="text-muted-foreground" style={{ fontSize: "60%" }}>/{lastInn?.wickets ?? 0}</span>
             </div>
             <div className="mt-1 font-mono text-sm text-muted-foreground">{oversStr} overs</div>
           </div>
@@ -309,9 +225,7 @@ function HeroLiveSlider() {
             {lastInn?.target ? (
               <>
                 <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Need</div>
-                <div className="font-display text-3xl text-primary mt-0.5">
-                  {Math.max(0, lastInn.target - lastInn.runs)} in {Math.max(0, m.overs * 6 - lastInn.balls)}
-                </div>
+                <div className="font-display text-3xl text-primary mt-0.5">{Math.max(0, lastInn.target - lastInn.runs)} in {Math.max(0, m.overs * 6 - lastInn.balls)}</div>
               </>
             ) : firstInn && (
               <>
@@ -321,35 +235,429 @@ function HeroLiveSlider() {
             )}
           </div>
         </div>
- 
-        {/* Prev innings score if 2nd innings */}
         {m.current_innings === 2 && firstInn && (
-          <div className="mt-3 text-xs text-muted-foreground">
-            {bowlingTeam?.name} scored <span className="font-mono text-foreground">{firstInn.runs}/{firstInn.wickets}</span>
-          </div>
+          <div className="mt-3 text-xs text-muted-foreground">{bowlingTeam?.name} scored <span className="font-mono text-foreground">{firstInn.runs}/{firstInn.wickets}</span></div>
         )}
- 
         <div className="mt-4 text-xs text-primary group-hover:underline">View full scorecard →</div>
       </Link>
- 
-      {/* Dots + arrows */}
       {rows.length > 1 && (
         <div className="mt-3 flex items-center justify-center gap-3">
-          <button onClick={prev} className="grid h-7 w-7 place-items-center rounded-full border border-border bg-card text-muted-foreground hover:text-foreground transition">
+          <button onClick={() => setIdx((i) => (i - 1 + rows.length) % rows.length)} className="grid h-7 w-7 place-items-center rounded-full border border-border bg-card text-muted-foreground hover:text-foreground transition">
             <ChevronLeft className="h-4 w-4" />
           </button>
           <div className="flex gap-1.5">
-            {rows.map((_, i) => (
-              <button key={i} onClick={() => setIdx(i)}
-                className={`h-1.5 rounded-full transition-all ${i === idx ? "w-5 bg-primary" : "w-1.5 bg-border"}`} />
-            ))}
+            {rows.map((_, i) => <button key={i} onClick={() => setIdx(i)} className={`h-1.5 rounded-full transition-all ${i === idx ? "w-5 bg-primary" : "w-1.5 bg-border"}`} />)}
           </div>
-          <button onClick={next} className="grid h-7 w-7 place-items-center rounded-full border border-border bg-card text-muted-foreground hover:text-foreground transition">
+          <button onClick={() => setIdx((i) => (i + 1) % rows.length)} className="grid h-7 w-7 place-items-center rounded-full border border-border bg-card text-muted-foreground hover:text-foreground transition">
             <ChevronRight className="h-4 w-4" />
           </button>
         </div>
       )}
     </div>
+  );
+}
+ 
+/* ════════════════════════════════════════
+   SHARED UI
+════════════════════════════════════════ */
+function SectionHeader({ title, sub, icon }: { title: string; sub: string; icon: string }) {
+  return (
+    <div className="flex items-center gap-3 mb-6">
+      <span className="text-2xl">{icon}</span>
+      <div>
+        <h2 className="font-display text-2xl sm:text-3xl tracking-tight">{title}</h2>
+        <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>
+      </div>
+    </div>
+  );
+}
+ 
+function PlayerCard({ p, rank, valueLabel }: { p: PlayerStat; rank: number; valueLabel: string }) {
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 transition hover:border-primary/30">
+      <span className="w-6 shrink-0 text-center font-display text-lg text-muted-foreground">{rank}</span>
+      {p.avatar ? (
+        <img src={p.avatar} alt={p.name} className="h-10 w-10 shrink-0 rounded-full object-cover border border-border" />
+      ) : (
+        <div className="h-10 w-10 shrink-0 grid place-items-center rounded-full bg-primary/15 font-display text-base text-primary">
+          {p.name.slice(0, 1).toUpperCase()}
+        </div>
+      )}
+      <div className="flex-1 min-w-0">
+        <div className="truncate font-semibold text-sm">{p.name}</div>
+        <div className="text-[10px] text-muted-foreground truncate">{p.team}</div>
+      </div>
+      <div className="text-right shrink-0">
+        <div className="font-display text-xl tabular-nums text-primary">{p.value}</div>
+        <div className="text-[9px] uppercase tracking-widest text-muted-foreground">{valueLabel}</div>
+      </div>
+    </div>
+  );
+}
+ 
+function PlayerGrid({ players, valueLabel, loading }: { players: PlayerStat[]; valueLabel: string; loading: boolean }) {
+  if (loading) return (
+    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      {[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="h-16 animate-pulse rounded-xl border border-border bg-card" />)}
+    </div>
+  );
+  if (!players.length) return (
+    <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+      No data yet — matches played on JustCric will appear here.
+    </div>
+  );
+  return (
+    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      {players.map((p, i) => <PlayerCard key={p.id} p={p} rank={i + 1} valueLabel={valueLabel} />)}
+    </div>
+  );
+}
+ 
+/* ════════════════════════════════════════
+   TOP BATTERS
+════════════════════════════════════════ */
+function TopBatters() {
+  const [players, setPlayers] = useState<PlayerStat[]>([]);
+  const [loading, setLoading] = useState(true);
+ 
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("balls")
+        .select("batter_id, batter_name, runs, extra_type, team_members!balls_batter_id_fkey(player_name, team_id, profiles(avatar_url), teams:team_members_team_id_fkey(name))")
+        .not("batter_id", "is", null)
+        .limit(5000);
+ 
+      const map = new Map<string, { name: string; avatar: string | null; runs: number; team: string }>();
+      (data ?? []).forEach((b: unknown) => {
+        const row = b as { batter_id: string; batter_name: string | null; runs: number; extra_type: string | null; team_members: { player_name: string; profiles: { avatar_url: string | null } | null; teams: { name: string } | null } | null };
+        if (!row.batter_id) return;
+        const isBat = row.extra_type !== "wide" && row.extra_type !== "bye" && row.extra_type !== "legbye";
+        if (!isBat) return;
+        const r = row.extra_type === "noball" ? row.runs - 1 : row.runs;
+        const existing = map.get(row.batter_id) ?? {
+          name: row.team_members?.player_name ?? row.batter_name ?? "Unknown",
+          avatar: row.team_members?.profiles?.avatar_url ?? null,
+          runs: 0,
+          team: row.team_members?.teams?.name ?? "—",
+        };
+        existing.runs += r;
+        map.set(row.batter_id, existing);
+      });
+ 
+      const sorted = [...map.entries()]
+        .sort((a, b) => b[1].runs - a[1].runs)
+        .slice(0, 9)
+        .map(([id, v]) => ({ id, name: v.name, avatar: v.avatar, value: v.runs, sub: `${v.runs} runs`, team: v.team }));
+      setPlayers(sorted);
+      setLoading(false);
+    })();
+  }, []);
+ 
+  return (
+    <section>
+      <SectionHeader title="Famous Batters" sub="Most runs scored on JustCric" icon="🏏" />
+      <PlayerGrid players={players} valueLabel="Runs" loading={loading} />
+    </section>
+  );
+}
+ 
+/* ════════════════════════════════════════
+   TOP BOWLERS
+════════════════════════════════════════ */
+function TopBowlers() {
+  const [players, setPlayers] = useState<PlayerStat[]>([]);
+  const [loading, setLoading] = useState(true);
+ 
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("balls")
+        .select("bowler_id, bowler_name, is_wicket, wicket_type, team_members!balls_bowler_id_fkey(player_name, team_id, profiles(avatar_url), teams:team_members_team_id_fkey(name))")
+        .eq("is_wicket", true)
+        .not("bowler_id", "is", null)
+        .limit(5000);
+ 
+      const map = new Map<string, { name: string; avatar: string | null; wkts: number; team: string }>();
+      (data ?? []).forEach((b: unknown) => {
+        const row = b as { bowler_id: string; bowler_name: string | null; wicket_type: string | null; team_members: { player_name: string; profiles: { avatar_url: string | null } | null; teams: { name: string } | null } | null };
+        if (!row.bowler_id) return;
+        if (row.wicket_type === "runout" || row.wicket_type === "retired_hurt") return;
+        const existing = map.get(row.bowler_id) ?? {
+          name: row.team_members?.player_name ?? row.bowler_name ?? "Unknown",
+          avatar: row.team_members?.profiles?.avatar_url ?? null,
+          wkts: 0,
+          team: row.team_members?.teams?.name ?? "—",
+        };
+        existing.wkts++;
+        map.set(row.bowler_id, existing);
+      });
+ 
+      const sorted = [...map.entries()]
+        .sort((a, b) => b[1].wkts - a[1].wkts)
+        .slice(0, 9)
+        .map(([id, v]) => ({ id, name: v.name, avatar: v.avatar, value: v.wkts, sub: `${v.wkts} wickets`, team: v.team }));
+      setPlayers(sorted);
+      setLoading(false);
+    })();
+  }, []);
+ 
+  return (
+    <section>
+      <SectionHeader title="Famous Bowlers" sub="Most wickets taken on JustCric" icon="🎳" />
+      <PlayerGrid players={players} valueLabel="Wickets" loading={loading} />
+    </section>
+  );
+}
+ 
+/* ════════════════════════════════════════
+   BEST ALL ROUNDERS
+   Score = runs + (wickets * 20)
+════════════════════════════════════════ */
+function BestAllRounders() {
+  const [players, setPlayers] = useState<PlayerStat[]>([]);
+  const [loading, setLoading] = useState(true);
+ 
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("balls")
+        .select("batter_id, bowler_id, batter_name, bowler_name, runs, extra_type, is_wicket, wicket_type, team_members!balls_batter_id_fkey(player_name, profiles(avatar_url), teams:team_members_team_id_fkey(name))")
+        .limit(5000);
+ 
+      const map = new Map<string, { name: string; avatar: string | null; runs: number; wkts: number; team: string }>();
+      const ensure = (id: string, name: string, avatar: string | null, team: string) => {
+        if (!map.has(id)) map.set(id, { name, avatar, runs: 0, wkts: 0, team });
+        return map.get(id)!;
+      };
+ 
+      (data ?? []).forEach((b: unknown) => {
+        const row = b as { batter_id: string | null; bowler_id: string | null; batter_name: string | null; bowler_name: string | null; runs: number; extra_type: string | null; is_wicket: boolean; wicket_type: string | null; team_members: { player_name: string; profiles: { avatar_url: string | null } | null; teams: { name: string } | null } | null };
+        if (row.batter_id) {
+          const isBat = row.extra_type !== "wide" && row.extra_type !== "bye" && row.extra_type !== "legbye";
+          if (isBat) {
+            const r = row.extra_type === "noball" ? row.runs - 1 : row.runs;
+            const p = ensure(row.batter_id, row.team_members?.player_name ?? row.batter_name ?? "—", row.team_members?.profiles?.avatar_url ?? null, row.team_members?.teams?.name ?? "—");
+            p.runs += r;
+          }
+        }
+        if (row.bowler_id && row.is_wicket && row.wicket_type !== "runout" && row.wicket_type !== "retired_hurt") {
+          const p = map.get(row.bowler_id);
+          if (p) p.wkts++;
+        }
+      });
+ 
+      const sorted = [...map.entries()]
+        .map(([id, v]) => ({ id, name: v.name, avatar: v.avatar, team: v.team, score: v.runs + v.wkts * 20, value: v.runs + v.wkts * 20, sub: `${v.runs}R ${v.wkts}W` }))
+        .filter((p) => p.value > 0)
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 9);
+      setPlayers(sorted);
+      setLoading(false);
+    })();
+  }, []);
+ 
+  return (
+    <section>
+      <SectionHeader title="Best All Rounders" sub="Runs + (Wickets × 20) combined score" icon="⚡" />
+      <PlayerGrid players={players} valueLabel="Score" loading={loading} />
+    </section>
+  );
+}
+ 
+/* ════════════════════════════════════════
+   BEST STRIKERS (Strike Rate min 20 balls)
+════════════════════════════════════════ */
+function BestStrikers() {
+  const [players, setPlayers] = useState<PlayerStat[]>([]);
+  const [loading, setLoading] = useState(true);
+ 
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("balls")
+        .select("batter_id, batter_name, runs, extra_type, team_members!balls_batter_id_fkey(player_name, profiles(avatar_url), teams:team_members_team_id_fkey(name))")
+        .not("batter_id", "is", null)
+        .limit(5000);
+ 
+      const map = new Map<string, { name: string; avatar: string | null; runs: number; balls: number; team: string }>();
+      (data ?? []).forEach((b: unknown) => {
+        const row = b as { batter_id: string; batter_name: string | null; runs: number; extra_type: string | null; team_members: { player_name: string; profiles: { avatar_url: string | null } | null; teams: { name: string } | null } | null };
+        if (!row.batter_id) return;
+        const p = map.get(row.batter_id) ?? { name: row.team_members?.player_name ?? row.batter_name ?? "—", avatar: row.team_members?.profiles?.avatar_url ?? null, runs: 0, balls: 0, team: row.team_members?.teams?.name ?? "—" };
+        if (row.extra_type !== "wide") p.balls++;
+        const isBat = row.extra_type !== "wide" && row.extra_type !== "bye" && row.extra_type !== "legbye";
+        if (isBat) { const r = row.extra_type === "noball" ? row.runs - 1 : row.runs; p.runs += r; }
+        map.set(row.batter_id, p);
+      });
+ 
+      const sorted = [...map.entries()]
+        .filter(([, v]) => v.balls >= 20)
+        .map(([id, v]) => ({ id, name: v.name, avatar: v.avatar, team: v.team, value: Math.round((v.runs / v.balls) * 100), sub: `${v.runs}R ${v.balls}B` }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 9);
+      setPlayers(sorted);
+      setLoading(false);
+    })();
+  }, []);
+ 
+  return (
+    <section>
+      <SectionHeader title="Best Strikers" sub="Highest strike rate (min. 20 balls faced)" icon="💥" />
+      <PlayerGrid players={players} valueLabel="SR" loading={loading} />
+    </section>
+  );
+}
+ 
+/* ════════════════════════════════════════
+   MVP — Most MOTM awards
+════════════════════════════════════════ */
+function MVPLeaderboard() {
+  const [players, setPlayers] = useState<PlayerStat[]>([]);
+  const [loading, setLoading] = useState(true);
+ 
+  useEffect(() => {
+    (async () => {
+      // Get all completed matches with motm
+      const { data: matches } = await supabase
+        .from("matches")
+        .select("motm_player_id")
+        .eq("status", "completed")
+        .not("motm_player_id" as never, "is", null)
+        .limit(1000);
+ 
+      const map = new Map<string, number>();
+      ((matches ?? []) as { motm_player_id: string }[]).forEach((m) => {
+        if (m.motm_player_id) map.set(m.motm_player_id, (map.get(m.motm_player_id) ?? 0) + 1);
+      });
+ 
+      if (!map.size) { setLoading(false); return; }
+ 
+      // Fetch member details
+      const ids = [...map.keys()];
+      const { data: mems } = await supabase
+        .from("team_members")
+        .select("id, player_name, profiles(avatar_url), teams:team_members_team_id_fkey(name)")
+        .in("id", ids);
+ 
+      const sorted = (mems ?? [])
+        .map((m: unknown) => {
+          const mem = m as { id: string; player_name: string; profiles: { avatar_url: string | null } | null; teams: { name: string } | null };
+          return { id: mem.id, name: mem.player_name, avatar: mem.profiles?.avatar_url ?? null, value: map.get(mem.id) ?? 0, sub: "", team: mem.teams?.name ?? "—" };
+        })
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 9);
+      setPlayers(sorted);
+      setLoading(false);
+    })();
+  }, []);
+ 
+  return (
+    <section>
+      <SectionHeader title="MVP Leaderboard" sub="Most Player of the Match awards" icon="🏆" />
+      <PlayerGrid players={players} valueLabel="MOTM" loading={loading} />
+    </section>
+  );
+}
+ 
+/* ════════════════════════════════════════
+   RECENT PERFORMANCES (last 24h)
+════════════════════════════════════════ */
+function RecentPerformances() {
+  const [perfs, setPerfs] = useState<RecentPerf[]>([]);
+  const [loading, setLoading] = useState(true);
+ 
+  useEffect(() => {
+    (async () => {
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+ 
+      // Recently completed matches
+      const { data: matches } = await supabase
+        .from("matches")
+        .select("id, completed_at, result_text, team_a:teams!matches_team_a_id_fkey(name), team_b:teams!matches_team_b_id_fkey(name), motm_player_id")
+        .eq("status", "completed")
+        .gte("completed_at", since)
+        .order("completed_at", { ascending: false })
+        .limit(10);
+ 
+      if (!matches?.length) { setLoading(false); return; }
+ 
+      const results: RecentPerf[] = [];
+      for (const m of matches as unknown as { id: string; completed_at: string; result_text: string | null; team_a: { name: string } | null; team_b: { name: string } | null; motm_player_id: string | null }[]) {
+        const matchLabel = `${m.team_a?.name ?? "Team A"} vs ${m.team_b?.name ?? "Team B"}`;
+        const date = new Date(m.completed_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+ 
+        // MOTM
+        if (m.motm_player_id) {
+          const { data: mem } = await supabase.from("team_members")
+            .select("id, player_name, profiles(avatar_url)").eq("id", m.motm_player_id).maybeSingle();
+          if (mem) {
+            const member = mem as { id: string; player_name: string; profiles: { avatar_url: string | null } | null };
+            results.push({ id: `motm-${m.id}`, matchLabel, date, playerName: member.player_name, avatar: member.profiles?.avatar_url ?? null, line: `🏆 Player of the Match in ${matchLabel}`, type: "motm" });
+          }
+        }
+ 
+        // Top batter of this match
+        const { data: balls } = await supabase.from("balls")
+          .select("batter_id, batter_name, runs, extra_type, team_members!balls_batter_id_fkey(player_name, profiles(avatar_url))")
+          .in("innings_id", (await supabase.from("innings").select("id").eq("match_id", m.id)).data?.map((i: { id: string }) => i.id) ?? [])
+          .not("batter_id", "is", null);
+ 
+        const batMap = new Map<string, { name: string; avatar: string | null; runs: number }>();
+        (balls ?? []).forEach((b: unknown) => {
+          const row = b as { batter_id: string; batter_name: string | null; runs: number; extra_type: string | null; team_members: { player_name: string; profiles: { avatar_url: string | null } | null } | null };
+          if (!row.batter_id) return;
+          const isBat = row.extra_type !== "wide" && row.extra_type !== "bye" && row.extra_type !== "legbye";
+          if (!isBat) return;
+          const r = row.extra_type === "noball" ? row.runs - 1 : row.runs;
+          const p = batMap.get(row.batter_id) ?? { name: row.team_members?.player_name ?? row.batter_name ?? "—", avatar: row.team_members?.profiles?.avatar_url ?? null, runs: 0 };
+          p.runs += r;
+          batMap.set(row.batter_id, p);
+        });
+ 
+        const topBat = [...batMap.entries()].sort((a, b) => b[1].runs - a[1].runs)[0];
+        if (topBat && topBat[1].runs >= 30) {
+          results.push({ id: `bat-${m.id}-${topBat[0]}`, matchLabel, date, playerName: topBat[1].name, avatar: topBat[1].avatar, line: `🏏 ${topBat[1].runs} runs in ${matchLabel}`, type: "bat" });
+        }
+      }
+ 
+      setPerfs(results.slice(0, 12));
+      setLoading(false);
+    })();
+  }, []);
+ 
+  return (
+    <section>
+      <SectionHeader title="Recent Performances" sub="Standout contributions from the last 24 hours" icon="⚡" />
+      {loading ? (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="h-20 animate-pulse rounded-xl border border-border bg-card" />)}
+        </div>
+      ) : !perfs.length ? (
+        <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+          No recent performances in the last 24 hours.
+        </div>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {perfs.map((p) => (
+            <div key={p.id} className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${p.type === "motm" ? "border-yellow-400/30 bg-yellow-400/5" : "border-border bg-card"}`}>
+              {p.avatar ? (
+                <img src={p.avatar} alt={p.playerName} className="h-10 w-10 shrink-0 rounded-full object-cover border border-border" />
+              ) : (
+                <div className="h-10 w-10 shrink-0 grid place-items-center rounded-full bg-primary/15 font-display text-base text-primary">
+                  {p.playerName.slice(0, 1).toUpperCase()}
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-semibold text-sm">{p.playerName}</div>
+                <div className="truncate text-xs text-muted-foreground">{p.line}</div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">{p.date}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
  
