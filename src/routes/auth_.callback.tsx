@@ -32,12 +32,10 @@ function AuthCallbackPage() {
           navigate({ to: "/" });
         }
       });
-
       const timer = setTimeout(() => {
         listener.subscription.unsubscribe();
         navigate({ to: "/auth", search: { mode: "login" } });
       }, 3000);
-
       return () => {
         clearTimeout(timer);
         listener.subscription.unsubscribe();

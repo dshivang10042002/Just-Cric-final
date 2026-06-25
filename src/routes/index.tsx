@@ -114,22 +114,19 @@ function Landing() {
                 className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3.5 text-base font-bold text-primary-foreground transition active:scale-95 hover:brightness-110 glow-primary">
                 Start Scoring Free <ArrowRight />
               </Link>
-              <a href="#live" className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-6 py-3.5 text-base font-semibold transition active:scale-95 hover:bg-secondary">
-                View Live Matches
-              </a>
+
             </div>
             <p className="mt-5 text-xs text-muted-foreground">Free forever · No credit card · Built for grassroots cricket</p>
-          </div>
-          <div className="mt-16" id="live">
-            <HeroLiveSlider />
           </div>
         </div>
       </section>
 
-      {/* ── Stats sections — only when logged in ── */}
+      {/* ── All sections gated behind login ── */}
       <div className="mx-auto max-w-7xl px-4 pb-20 sm:px-6 space-y-16">
         {isLoggedIn ? (
           <>
+            <div id="live"><HeroLiveSlider /></div>
+            <MyMatches />
             <TopBatters />
             <TopBowlers />
             <BestAllRounders />
@@ -142,7 +139,7 @@ function Landing() {
             <div className="text-4xl mb-4">🏏</div>
             <h2 className="font-display text-2xl sm:text-3xl tracking-tight">See who's dominating JustCric</h2>
             <p className="mt-2 text-sm text-muted-foreground max-w-sm mx-auto">
-              Sign in to see top batters, bowlers, all-rounders, MVP leaderboard and recent performances.
+              Sign in to see live matches, your scorecards, top players and recent performances.
             </p>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
               <Link to="/auth" search={{ mode: "register" }}
@@ -181,6 +178,99 @@ function Landing() {
       </footer>
       <BottomNav />
     </div>
+  );
+}
+
+
+/* ════════════════════════════════════════
+   MY MATCHES (logged-in user's matches)
+════════════════════════════════════════ */
+function MyMatches() {
+  const [matches, setMatches] = useState<{
+    id: string; status: string; result_text: string | null; overs: number; venue: string | null; created_at: string;
+    team_a: { name: string; short_name: string | null; jersey_color: string | null } | null;
+    team_b: { name: string; short_name: string | null; jersey_color: string | null } | null;
+  }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) { setLoading(false); return; }
+      const { data } = await supabase
+        .from("matches")
+        .select("id, status, result_text, overs, venue, created_at, team_a:teams!matches_team_a_id_fkey(name, short_name, jersey_color), team_b:teams!matches_team_b_id_fkey(name, short_name, jersey_color)")
+        .eq("created_by", u.user.id)
+        .order("created_at", { ascending: false })
+        .limit(4);
+      setMatches((data as unknown as typeof matches) ?? []);
+      setLoading(false);
+    })();
+  }, []);
+
+  if (loading) return (
+    <section>
+      <SectionHeader title="My Matches" sub="Your recent matches" icon="📋" />
+      <div className="grid gap-3 sm:grid-cols-2">
+        {[0,1,2,3].map((i) => <div key={i} className="h-20 animate-pulse rounded-xl border border-border bg-card" />)}
+      </div>
+    </section>
+  );
+
+  if (!matches.length) return null;
+
+  return (
+    <section>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">📋</span>
+          <div>
+            <h2 className="font-display text-2xl sm:text-3xl tracking-tight">My Matches</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Your recent scorecards</p>
+          </div>
+        </div>
+        <Link to="/matches"
+          className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-4 py-1.5 text-xs font-semibold text-foreground transition hover:border-primary/40 hover:text-primary">
+          Show all →
+        </Link>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {matches.map((m) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const ta = m.team_a as any;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const tb = m.team_b as any;
+          const linkTo = m.status === "completed" ? `/match/${m.id}` : `/matches/${m.id}/score`;
+          return (
+            <a key={m.id} href={linkTo}
+              className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 transition hover:border-primary/30 active:scale-[0.99]">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg font-display text-xs font-bold text-white"
+                  style={{ backgroundColor: ta?.jersey_color || "#003527" }}>
+                  {(ta?.short_name || ta?.name || "A").slice(0, 3).toUpperCase()}
+                </span>
+                <span className="text-xs text-muted-foreground font-semibold">vs</span>
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg font-display text-xs font-bold text-white"
+                  style={{ backgroundColor: tb?.jersey_color || "#1a472a" }}>
+                  {(tb?.short_name || tb?.name || "B").slice(0, 3).toUpperCase()}
+                </span>
+                <div className="min-w-0 flex-1 ml-1">
+                  <div className="truncate text-sm font-semibold">{ta?.name} vs {tb?.name}</div>
+                  {m.result_text && <div className="truncate text-[10px] text-primary">{m.result_text}</div>}
+                </div>
+              </div>
+              <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                m.status === "live" ? "bg-destructive/15 text-destructive" :
+                m.status === "completed" ? "bg-secondary text-muted-foreground" :
+                "border border-primary/30 text-primary"
+              }`}>
+                {m.status === "live" ? "● Live" : m.status === "completed" ? "FT" : "Soon"}
+              </span>
+            </a>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
