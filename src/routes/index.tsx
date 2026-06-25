@@ -4,7 +4,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { supabase } from "@/integrations/supabase/client";
 import { Radio, ChevronLeft, ChevronRight } from "lucide-react";
- 
+
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
@@ -36,25 +36,21 @@ export const Route = createFileRoute("/")({
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-title", content: "JustCric" },
     ],
-    links: [
-      { rel: "canonical", href: "https://justcric.in/" },
-    ],
-    scripts: [
-      {
-        type: "application/ld+json",
-        children: JSON.stringify({
-          "@context": "https://schema.org",
-          "@graph": [
-            { "@type": "WebSite", "@id": "https://justcric.in/#website", "url": "https://justcric.in/", "name": "JustCric", "description": "Free cricket scoring app for India." },
-            { "@type": "SoftwareApplication", "name": "JustCric", "operatingSystem": "Web", "applicationCategory": "SportsApplication", "offers": { "@type": "Offer", "price": "0", "priceCurrency": "INR" } },
-          ],
-        }),
-      },
-    ],
+    links: [{ rel: "canonical", href: "https://justcric.in/" }],
+    scripts: [{
+      type: "application/ld+json",
+      children: JSON.stringify({
+        "@context": "https://schema.org",
+        "@graph": [
+          { "@type": "WebSite", "@id": "https://justcric.in/#website", "url": "https://justcric.in/", "name": "JustCric", "description": "Free cricket scoring app for India." },
+          { "@type": "SoftwareApplication", "name": "JustCric", "operatingSystem": "Web", "applicationCategory": "SportsApplication", "offers": { "@type": "Offer", "price": "0", "priceCurrency": "INR" } },
+        ],
+      }),
+    }],
   }),
   component: Landing,
 });
- 
+
 /* ─── Types ─── */
 type LiveMatch = {
   id: string; overs: number; venue: string | null; current_innings: number;
@@ -71,19 +67,27 @@ type PlayerStat = {
   matches: number;
 };
 type RecentPerf = { id: string; matchLabel: string; date: string; playerName: string; avatar: string | null; line: string; type: "bat" | "bowl" | "motm" };
- 
-/* ─── Map value shape used across stat sections ─── */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type StatMapValue = Record<string, any>;
- 
+
 /* ════════════════════════════════════════
    LANDING PAGE
 ════════════════════════════════════════ */
 function Landing() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setIsLoggedIn(!!data.session?.user);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      setIsLoggedIn(!!session?.user);
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <Navbar />
- 
+
       {/* ── Hero ── */}
       <section className="relative overflow-hidden">
         <div className="pointer-events-none absolute inset-0 -z-10">
@@ -116,24 +120,44 @@ function Landing() {
             </div>
             <p className="mt-5 text-xs text-muted-foreground">Free forever · No credit card · Built for grassroots cricket</p>
           </div>
- 
-          {/* Live match slider */}
           <div className="mt-16" id="live">
             <HeroLiveSlider />
           </div>
         </div>
       </section>
- 
-      {/* ── Stats sections ── */}
+
+      {/* ── Stats sections — only when logged in ── */}
       <div className="mx-auto max-w-7xl px-4 pb-20 sm:px-6 space-y-16">
-        <TopBatters />
-        <TopBowlers />
-        <BestAllRounders />
-        <BestStrikers />
-        <MVPLeaderboard />
-        <RecentPerformances />
+        {isLoggedIn ? (
+          <>
+            <TopBatters />
+            <TopBowlers />
+            <BestAllRounders />
+            <BestStrikers />
+            <MVPLeaderboard />
+            <RecentPerformances />
+          </>
+        ) : (
+          <div className="rounded-2xl border border-border bg-card p-10 text-center">
+            <div className="text-4xl mb-4">🏏</div>
+            <h2 className="font-display text-2xl sm:text-3xl tracking-tight">See who's dominating JustCric</h2>
+            <p className="mt-2 text-sm text-muted-foreground max-w-sm mx-auto">
+              Sign in to see top batters, bowlers, all-rounders, MVP leaderboard and recent performances.
+            </p>
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+              <Link to="/auth" search={{ mode: "register" }}
+                className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground transition active:scale-95 hover:brightness-110">
+                Create free account
+              </Link>
+              <Link to="/auth" search={{ mode: "login" }}
+                className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-5 py-2.5 text-sm font-semibold transition active:scale-95 hover:bg-secondary">
+                Sign in
+              </Link>
+            </div>
+          </div>
+        )}
       </div>
- 
+
       {/* ── Pricing ── */}
       <section id="pricing" className="mx-auto max-w-3xl px-4 py-16 text-center sm:px-6">
         <h2 className="font-display text-4xl tracking-tight sm:text-5xl">Free at launch</h2>
@@ -145,7 +169,7 @@ function Landing() {
           </Link>
         </div>
       </section>
- 
+
       <footer className="border-t border-border">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-4 py-8 text-sm text-muted-foreground sm:flex-row sm:px-6">
           <div><span className="font-display text-lg text-primary">JustCric</span> · © {new Date().getFullYear()}</div>
@@ -159,7 +183,7 @@ function Landing() {
     </div>
   );
 }
- 
+
 /* ════════════════════════════════════════
    HERO LIVE SLIDER
 ════════════════════════════════════════ */
@@ -168,7 +192,7 @@ function HeroLiveSlider() {
   const [loading, setLoading] = useState(true);
   const [idx, setIdx] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
- 
+
   useEffect(() => {
     (async () => {
       const { data } = await supabase
@@ -181,15 +205,15 @@ function HeroLiveSlider() {
       setLoading(false);
     })();
   }, []);
- 
+
   useEffect(() => {
     if (rows.length <= 1) return;
     timerRef.current = setInterval(() => setIdx((i) => (i + 1) % rows.length), 5000);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [rows.length]);
- 
+
   if (loading) return <div className="mx-auto max-w-3xl h-[200px] animate-pulse rounded-2xl border border-border bg-card" />;
- 
+
   if (!rows.length) return (
     <div className="mx-auto max-w-3xl rounded-2xl border border-border bg-card p-8 text-center">
       <div className="text-4xl mb-3">🏏</div>
@@ -200,7 +224,7 @@ function HeroLiveSlider() {
       </Link>
     </div>
   );
- 
+
   const m = rows[idx];
   const lastInn = m.innings?.[m.innings.length - 1] ?? null;
   const firstInn = m.innings?.[0] ?? null;
@@ -208,7 +232,7 @@ function HeroLiveSlider() {
   const bowlingTeam = lastInn?.batting_team_id === m.team_a_id ? m.team_b : m.team_a;
   const oversStr = lastInn ? `${Math.floor(lastInn.balls / 6)}.${lastInn.balls % 6}` : "0.0";
   const crr = lastInn && lastInn.balls > 0 ? ((lastInn.runs / lastInn.balls) * 6).toFixed(2) : "—";
- 
+
   return (
     <div className="mx-auto max-w-3xl">
       <Link to="/match/$matchId" params={{ matchId: m.id }}
@@ -266,7 +290,7 @@ function HeroLiveSlider() {
     </div>
   );
 }
- 
+
 /* ════════════════════════════════════════
    SHARED UI
 ════════════════════════════════════════ */
@@ -281,20 +305,16 @@ function SectionHeader({ title, sub, icon }: { title: string; sub: string; icon:
     </div>
   );
 }
- 
+
 function PlayerCard({ p, rank, valueLabel }: { p: PlayerStat; rank: number; valueLabel: string }) {
   const rankColors = ["text-yellow-500", "text-slate-400", "text-amber-600"];
   const rankBg = ["bg-yellow-400/10 border-yellow-400/30", "bg-slate-400/10 border-slate-400/30", "bg-amber-600/10 border-amber-600/30"];
   const isTop3 = rank <= 3;
- 
   return (
     <div className={`relative overflow-hidden rounded-2xl border bg-card transition hover:shadow-lg hover:-translate-y-0.5 ${isTop3 ? rankBg[rank - 1] : "border-border hover:border-primary/30"}`}>
-      {/* Rank badge */}
       <div className={`absolute top-3 right-3 grid h-7 w-7 place-items-center rounded-full border text-xs font-bold ${isTop3 ? rankBg[rank - 1] + " " + rankColors[rank - 1] : "border-border bg-secondary text-muted-foreground"}`}>
         {rank}
       </div>
- 
-      {/* Top section — avatar + name */}
       <div className="flex items-center gap-4 p-4 pb-3">
         <div className="relative shrink-0">
           {p.avatar ? (
@@ -305,7 +325,7 @@ function PlayerCard({ p, rank, valueLabel }: { p: PlayerStat; rank: number; valu
             </div>
           )}
           {isTop3 && (
-            <div className={`absolute -bottom-1.5 -right-1.5 text-base`}>
+            <div className="absolute -bottom-1.5 -right-1.5 text-base">
               {rank === 1 ? "🥇" : rank === 2 ? "🥈" : "🥉"}
             </div>
           )}
@@ -316,8 +336,6 @@ function PlayerCard({ p, rank, valueLabel }: { p: PlayerStat; rank: number; valu
           {p.city && <div className="text-[10px] text-muted-foreground/70 mt-0.5">📍 {p.city}</div>}
         </div>
       </div>
- 
-      {/* Stats row */}
       <div className="border-t border-border/50 grid grid-cols-3 divide-x divide-border/50">
         <div className="px-3 py-2.5 text-center">
           <div className={`font-display text-xl tabular-nums ${isTop3 ? rankColors[rank - 1] : "text-primary"}`}>{p.value}</div>
@@ -325,37 +343,27 @@ function PlayerCard({ p, rank, valueLabel }: { p: PlayerStat; rank: number; valu
         </div>
         <div className="px-3 py-2.5 text-center">
           <div className="font-display text-xl tabular-nums text-foreground">{p.matches}</div>
-          <div className="text-[9px] uppercase tracking-wider text-muted-foreground mt-0.5">Matches</div>
+          <div className="text-[9px] uppercase tracking-wider text-muted-foreground mt-0.5">Innings</div>
         </div>
         <div className="px-3 py-2.5 text-center">
           <div className="text-[10px] font-semibold text-foreground truncate mt-1">{p.role ?? "—"}</div>
           <div className="text-[9px] uppercase tracking-wider text-muted-foreground mt-0.5">Role</div>
         </div>
       </div>
- 
-      {/* Style tags */}
       {(p.batting_style || p.bowling_style) && (
         <div className="border-t border-border/50 px-3 py-2 flex flex-wrap gap-1.5">
-          {p.batting_style && (
-            <span className="rounded-full border border-border bg-background px-2 py-0.5 text-[10px] text-muted-foreground">
-              🏏 {p.batting_style}
-            </span>
-          )}
-          {p.bowling_style && (
-            <span className="rounded-full border border-border bg-background px-2 py-0.5 text-[10px] text-muted-foreground">
-              🎳 {p.bowling_style}
-            </span>
-          )}
+          {p.batting_style && <span className="rounded-full border border-border bg-background px-2 py-0.5 text-[10px] text-muted-foreground">🏏 {p.batting_style}</span>}
+          {p.bowling_style && <span className="rounded-full border border-border bg-background px-2 py-0.5 text-[10px] text-muted-foreground">🎳 {p.bowling_style}</span>}
         </div>
       )}
     </div>
   );
 }
- 
+
 function PlayerGrid({ players, valueLabel, loading }: { players: PlayerStat[]; valueLabel: string; loading: boolean }) {
   if (loading) return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="h-36 animate-pulse rounded-2xl border border-border bg-card" />)}
+      {[0,1,2,3,4,5].map((i) => <div key={i} className="h-36 animate-pulse rounded-2xl border border-border bg-card" />)}
     </div>
   );
   if (!players.length) return (
@@ -369,25 +377,24 @@ function PlayerGrid({ players, valueLabel, loading }: { players: PlayerStat[]; v
     </div>
   );
 }
- 
+
 /* ════════════════════════════════════════
    TOP BATTERS
 ════════════════════════════════════════ */
 function TopBatters() {
   const [players, setPlayers] = useState<PlayerStat[]>([]);
   const [loading, setLoading] = useState(true);
- 
+
   useEffect(() => {
     (async () => {
       const { data } = await supabase
         .from("balls")
-        .select("batter_id, batter_name, runs, extra_type, innings_id, team_members!balls_batter_id_fkey(player_name, team_id, role, batting_style, bowling_style, profiles(avatar_url, city, batting_style, bowling_style, role), teams:team_members_team_id_fkey(name))")
+        .select("batter_id, batter_name, runs, extra_type, team_members!balls_batter_id_fkey(player_name, team_id, role, batting_style, bowling_style, profiles(avatar_url, city, batting_style, bowling_style, role), teams:team_members_team_id_fkey(name))")
         .not("batter_id", "is", null)
         .limit(5000);
- 
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const map = new Map<string, StatMapValue>();
- 
+      const map = new Map<string, any>();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (data as any[] ?? []).forEach((row: any) => {
         if (!row.batter_id) return;
@@ -395,37 +402,40 @@ function TopBatters() {
         if (!isBat) return;
         const r = row.extra_type === "noball" ? row.runs - 1 : row.runs;
         const tm = row.team_members;
-        const existing: StatMapValue = map.get(row.batter_id) ?? {
-          name: tm?.player_name ?? row.batter_name ?? "Unknown",
-          avatar: tm?.profiles?.avatar_url ?? null,
-          runs: 0,
-          innings: new Set<string>(),
-          team: tm?.teams?.name ?? "—",
-          role: tm?.profiles?.role ?? tm?.role ?? null,
-          city: tm?.profiles?.city ?? null,
-          batting_style: tm?.profiles?.batting_style ?? tm?.batting_style ?? null,
-          bowling_style: tm?.profiles?.bowling_style ?? tm?.bowling_style ?? null,
-        };
-        existing.runs += r;
-        existing.innings.add(row.innings_id ?? "");
-        map.set(row.batter_id, existing);
+        if (!map.has(row.batter_id)) {
+          map.set(row.batter_id, {
+            name: tm?.player_name ?? row.batter_name ?? "Unknown",
+            avatar: tm?.profiles?.avatar_url ?? null,
+            runs: 0, cnt: 0,
+            team: tm?.teams?.name ?? "—",
+            role: tm?.profiles?.role ?? tm?.role ?? null,
+            city: tm?.profiles?.city ?? null,
+            batting_style: tm?.profiles?.batting_style ?? tm?.batting_style ?? null,
+            bowling_style: tm?.profiles?.bowling_style ?? tm?.bowling_style ?? null,
+          });
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const e = map.get(row.batter_id) as any;
+        e.runs += r;
+        e.cnt++;
       });
- 
-      const sorted = [...map.entries()]
+
+      const sorted: PlayerStat[] = [...map.entries()]
         .sort((a, b) => b[1].runs - a[1].runs)
         .slice(0, 9)
-        .map(([id, v]) => ({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map(([id, v]: [string, any]) => ({
           id, name: v.name, avatar: v.avatar,
           value: v.runs, sub: `${v.runs} runs`,
           team: v.team, role: v.role, city: v.city,
           batting_style: v.batting_style, bowling_style: v.bowling_style,
-          matches: (v.innings as Set<string>).size,
+          matches: v.cnt,
         }));
       setPlayers(sorted);
       setLoading(false);
     })();
   }, []);
- 
+
   return (
     <section>
       <SectionHeader title="Famous Batters" sub="Most runs scored on JustCric" icon="🏏" />
@@ -433,62 +443,64 @@ function TopBatters() {
     </section>
   );
 }
- 
+
 /* ════════════════════════════════════════
    TOP BOWLERS
 ════════════════════════════════════════ */
 function TopBowlers() {
   const [players, setPlayers] = useState<PlayerStat[]>([]);
   const [loading, setLoading] = useState(true);
- 
+
   useEffect(() => {
     (async () => {
       const { data } = await supabase
         .from("balls")
-        .select("bowler_id, bowler_name, is_wicket, wicket_type, innings_id, team_members!balls_bowler_id_fkey(player_name, team_id, role, batting_style, bowling_style, profiles(avatar_url, city, batting_style, bowling_style, role), teams:team_members_team_id_fkey(name))")
+        .select("bowler_id, bowler_name, is_wicket, wicket_type, team_members!balls_bowler_id_fkey(player_name, team_id, role, batting_style, bowling_style, profiles(avatar_url, city, batting_style, bowling_style, role), teams:team_members_team_id_fkey(name))")
         .eq("is_wicket", true)
         .not("bowler_id", "is", null)
         .limit(5000);
- 
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const map = new Map<string, StatMapValue>();
- 
+      const map = new Map<string, any>();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (data as any[] ?? []).forEach((row: any) => {
         if (!row.bowler_id) return;
         if (row.wicket_type === "runout" || row.wicket_type === "retired_hurt") return;
         const tm = row.team_members;
-        const existing: StatMapValue = map.get(row.bowler_id) ?? {
-          name: tm?.player_name ?? row.bowler_name ?? "Unknown",
-          avatar: tm?.profiles?.avatar_url ?? null,
-          wkts: 0,
-          innings: new Set<string>(),
-          team: tm?.teams?.name ?? "—",
-          role: tm?.profiles?.role ?? tm?.role ?? null,
-          city: tm?.profiles?.city ?? null,
-          batting_style: tm?.profiles?.batting_style ?? tm?.batting_style ?? null,
-          bowling_style: tm?.profiles?.bowling_style ?? tm?.bowling_style ?? null,
-        };
-        existing.wkts++;
-        existing.innings.add(row.innings_id ?? "");
-        map.set(row.bowler_id, existing);
+        if (!map.has(row.bowler_id)) {
+          map.set(row.bowler_id, {
+            name: tm?.player_name ?? row.bowler_name ?? "Unknown",
+            avatar: tm?.profiles?.avatar_url ?? null,
+            wkts: 0, cnt: 0,
+            team: tm?.teams?.name ?? "—",
+            role: tm?.profiles?.role ?? tm?.role ?? null,
+            city: tm?.profiles?.city ?? null,
+            batting_style: tm?.profiles?.batting_style ?? tm?.batting_style ?? null,
+            bowling_style: tm?.profiles?.bowling_style ?? tm?.bowling_style ?? null,
+          });
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const e = map.get(row.bowler_id) as any;
+        e.wkts++;
+        e.cnt++;
       });
- 
-      const sorted = [...map.entries()]
+
+      const sorted: PlayerStat[] = [...map.entries()]
         .sort((a, b) => b[1].wkts - a[1].wkts)
         .slice(0, 9)
-        .map(([id, v]) => ({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map(([id, v]: [string, any]) => ({
           id, name: v.name, avatar: v.avatar,
           value: v.wkts, sub: `${v.wkts} wickets`,
           team: v.team, role: v.role, city: v.city,
           batting_style: v.batting_style, bowling_style: v.bowling_style,
-          matches: (v.innings as Set<string>).size,
+          matches: v.cnt,
         }));
       setPlayers(sorted);
       setLoading(false);
     })();
   }, []);
- 
+
   return (
     <section>
       <SectionHeader title="Famous Bowlers" sub="Most wickets taken on JustCric" icon="🎳" />
@@ -496,30 +508,28 @@ function TopBowlers() {
     </section>
   );
 }
- 
+
 /* ════════════════════════════════════════
    BEST ALL ROUNDERS
-   Score = runs + (wickets * 20)
 ════════════════════════════════════════ */
 function BestAllRounders() {
   const [players, setPlayers] = useState<PlayerStat[]>([]);
   const [loading, setLoading] = useState(true);
- 
+
   useEffect(() => {
     (async () => {
       const { data } = await supabase
         .from("balls")
         .select("batter_id, bowler_id, batter_name, bowler_name, runs, extra_type, is_wicket, wicket_type, team_members!balls_batter_id_fkey(player_name, profiles(avatar_url), teams:team_members_team_id_fkey(name))")
         .limit(5000);
- 
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const map = new Map<string, StatMapValue>();
- 
-      const ensure = (id: string, name: string, avatar: string | null, team: string): StatMapValue => {
+      const map = new Map<string, any>();
+      const ensure = (id: string, name: string, avatar: string | null, team: string) => {
         if (!map.has(id)) map.set(id, { name, avatar, runs: 0, wkts: 0, team });
-        return map.get(id)!;
+        return map.get(id);
       };
- 
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (data as any[] ?? []).forEach((row: any) => {
         if (row.batter_id) {
@@ -536,9 +546,10 @@ function BestAllRounders() {
           if (p) p.wkts++;
         }
       });
- 
-      const sorted = [...map.entries()]
-        .map(([id, v]) => ({
+
+      const sorted: PlayerStat[] = [...map.entries()]
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map(([id, v]: [string, any]) => ({
           id, name: v.name, avatar: v.avatar, team: v.team,
           value: v.runs + v.wkts * 20,
           sub: `${v.runs}R ${v.wkts}W`,
@@ -551,22 +562,22 @@ function BestAllRounders() {
       setLoading(false);
     })();
   }, []);
- 
+
   return (
     <section>
-      <SectionHeader title="Best All Rounders" sub="Runs + (Wickets × 20) combined score" icon="⚡" />
+      <SectionHeader title="Best All Rounders" sub="Runs + (Wickets x 20) combined score" icon="⚡" />
       <PlayerGrid players={players} valueLabel="Score" loading={loading} />
     </section>
   );
 }
- 
+
 /* ════════════════════════════════════════
-   BEST STRIKERS (Strike Rate min 20 balls)
+   BEST STRIKERS
 ════════════════════════════════════════ */
 function BestStrikers() {
   const [players, setPlayers] = useState<PlayerStat[]>([]);
   const [loading, setLoading] = useState(true);
- 
+
   useEffect(() => {
     (async () => {
       const { data } = await supabase
@@ -574,29 +585,26 @@ function BestStrikers() {
         .select("batter_id, batter_name, runs, extra_type, team_members!balls_batter_id_fkey(player_name, profiles(avatar_url), teams:team_members_team_id_fkey(name))")
         .not("batter_id", "is", null)
         .limit(5000);
- 
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const map = new Map<string, StatMapValue>();
- 
+      const map = new Map<string, any>();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (data as any[] ?? []).forEach((row: any) => {
         if (!row.batter_id) return;
         const tm = row.team_members;
-        const p: StatMapValue = map.get(row.batter_id) ?? {
-          name: tm?.player_name ?? row.batter_name ?? "—",
-          avatar: tm?.profiles?.avatar_url ?? null,
-          runs: 0, balls: 0,
-          team: tm?.teams?.name ?? "—",
-        };
+        if (!map.has(row.batter_id)) {
+          map.set(row.batter_id, { name: tm?.player_name ?? row.batter_name ?? "—", avatar: tm?.profiles?.avatar_url ?? null, runs: 0, balls: 0, team: tm?.teams?.name ?? "—" });
+        }
+        const p = map.get(row.batter_id);
         if (row.extra_type !== "wide") p.balls++;
         const isBat = row.extra_type !== "wide" && row.extra_type !== "bye" && row.extra_type !== "legbye";
         if (isBat) { const r = row.extra_type === "noball" ? row.runs - 1 : row.runs; p.runs += r; }
-        map.set(row.batter_id, p);
       });
- 
-      const sorted = [...map.entries()]
+
+      const sorted: PlayerStat[] = [...map.entries()]
         .filter(([, v]) => v.balls >= 20)
-        .map(([id, v]) => ({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map(([id, v]: [string, any]) => ({
           id, name: v.name, avatar: v.avatar, team: v.team,
           value: Math.round((v.runs / v.balls) * 100),
           sub: `${v.runs}R ${v.balls}B`,
@@ -608,7 +616,7 @@ function BestStrikers() {
       setLoading(false);
     })();
   }, []);
- 
+
   return (
     <section>
       <SectionHeader title="Best Strikers" sub="Highest strike rate (min. 20 balls faced)" icon="💥" />
@@ -616,14 +624,14 @@ function BestStrikers() {
     </section>
   );
 }
- 
+
 /* ════════════════════════════════════════
-   MVP — Most MOTM awards
+   MVP LEADERBOARD
 ════════════════════════════════════════ */
 function MVPLeaderboard() {
   const [players, setPlayers] = useState<PlayerStat[]>([]);
   const [loading, setLoading] = useState(true);
- 
+
   useEffect(() => {
     (async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -633,29 +641,24 @@ function MVPLeaderboard() {
         .eq("status", "completed")
         .not("motm_player_id", "is", null)
         .limit(1000);
- 
+
       const map = new Map<string, number>();
       ((matches ?? []) as { motm_player_id: string }[]).forEach((m) => {
         if (m.motm_player_id) map.set(m.motm_player_id, (map.get(m.motm_player_id) ?? 0) + 1);
       });
- 
       if (!map.size) { setLoading(false); return; }
- 
-      const ids = [...map.keys()];
+
       const { data: mems } = await supabase
         .from("team_members")
         .select("id, player_name, role, batting_style, bowling_style, profiles(avatar_url, city, role, batting_style, bowling_style), teams:team_members_team_id_fkey(name)")
-        .in("id", ids);
- 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const sorted = (mems as any[] ?? [])
+        .in("id", [...map.keys()]);
+
+      const sorted: PlayerStat[] = (mems as any[] ?? [])
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .map((mem: any) => ({
-          id: mem.id,
-          name: mem.player_name,
+          id: mem.id, name: mem.player_name,
           avatar: mem.profiles?.avatar_url ?? null,
-          value: map.get(mem.id) ?? 0,
-          sub: "",
+          value: map.get(mem.id) ?? 0, sub: "",
           team: mem.teams?.name ?? "—",
           role: mem.profiles?.role ?? mem.role ?? null,
           city: mem.profiles?.city ?? null,
@@ -669,7 +672,7 @@ function MVPLeaderboard() {
       setLoading(false);
     })();
   }, []);
- 
+
   return (
     <section>
       <SectionHeader title="MVP Leaderboard" sub="Most Player of the Match awards" icon="🏆" />
@@ -677,18 +680,17 @@ function MVPLeaderboard() {
     </section>
   );
 }
- 
+
 /* ════════════════════════════════════════
-   RECENT PERFORMANCES (last 24h)
+   RECENT PERFORMANCES
 ════════════════════════════════════════ */
 function RecentPerformances() {
   const [perfs, setPerfs] = useState<RecentPerf[]>([]);
   const [loading, setLoading] = useState(true);
- 
+
   useEffect(() => {
     (async () => {
       const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
- 
       const { data: matches } = await supabase
         .from("matches")
         .select("id, completed_at, result_text, team_a:teams!matches_team_a_id_fkey(name), team_b:teams!matches_team_b_id_fkey(name), motm_player_id")
@@ -696,87 +698,63 @@ function RecentPerformances() {
         .gte("completed_at", since)
         .order("completed_at", { ascending: false })
         .limit(10);
- 
+
       if (!matches?.length) { setLoading(false); return; }
- 
       const results: RecentPerf[] = [];
- 
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       for (const m of matches as any[]) {
         const matchLabel = `${m.team_a?.name ?? "Team A"} vs ${m.team_b?.name ?? "Team B"}`;
         const date = new Date(m.completed_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
- 
-        // MOTM
+
         if (m.motm_player_id) {
           const { data: mem } = await supabase.from("team_members")
             .select("id, player_name, profiles(avatar_url)").eq("id", m.motm_player_id).maybeSingle();
           if (mem) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const member = mem as any;
-            results.push({
-              id: `motm-${m.id}`, matchLabel, date,
-              playerName: member.player_name,
-              avatar: member.profiles?.avatar_url ?? null,
-              line: `🏆 Player of the Match in ${matchLabel}`,
-              type: "motm",
-            });
+            results.push({ id: `motm-${m.id}`, matchLabel, date, playerName: member.player_name, avatar: member.profiles?.avatar_url ?? null, line: `🏆 Player of the Match in ${matchLabel}`, type: "motm" });
           }
         }
- 
-        // Top batter of this match
+
         const { data: inningsRows } = await supabase.from("innings").select("id").eq("match_id", m.id);
         const inningsIds = (inningsRows ?? []).map((i: { id: string }) => i.id);
- 
         const { data: balls } = await supabase.from("balls")
           .select("batter_id, batter_name, runs, extra_type, team_members!balls_batter_id_fkey(player_name, profiles(avatar_url))")
-          .in("innings_id", inningsIds)
-          .not("batter_id", "is", null);
- 
+          .in("innings_id", inningsIds).not("batter_id", "is", null);
+
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const batMap = new Map<string, StatMapValue>();
+        const batMap = new Map<string, any>();
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (balls as any[] ?? []).forEach((row: any) => {
           if (!row.batter_id) return;
           const isBat = row.extra_type !== "wide" && row.extra_type !== "bye" && row.extra_type !== "legbye";
           if (!isBat) return;
           const r = row.extra_type === "noball" ? row.runs - 1 : row.runs;
-          const p: StatMapValue = batMap.get(row.batter_id) ?? {
-            name: row.team_members?.player_name ?? row.batter_name ?? "—",
-            avatar: row.team_members?.profiles?.avatar_url ?? null,
-            runs: 0,
-          };
-          p.runs += r;
-          batMap.set(row.batter_id, p);
+          if (!batMap.has(row.batter_id)) batMap.set(row.batter_id, { name: row.team_members?.player_name ?? row.batter_name ?? "—", avatar: row.team_members?.profiles?.avatar_url ?? null, runs: 0 });
+          batMap.get(row.batter_id).runs += r;
         });
- 
+
         const topBat = [...batMap.entries()].sort((a, b) => b[1].runs - a[1].runs)[0];
         if (topBat && topBat[1].runs >= 30) {
-          results.push({
-            id: `bat-${m.id}-${topBat[0]}`, matchLabel, date,
-            playerName: topBat[1].name,
-            avatar: topBat[1].avatar,
-            line: `🏏 ${topBat[1].runs} runs in ${matchLabel}`,
-            type: "bat",
-          });
+          results.push({ id: `bat-${m.id}-${topBat[0]}`, matchLabel, date, playerName: topBat[1].name, avatar: topBat[1].avatar, line: `🏏 ${topBat[1].runs} runs in ${matchLabel}`, type: "bat" });
         }
       }
- 
+
       setPerfs(results.slice(0, 12));
       setLoading(false);
     })();
   }, []);
- 
+
   return (
     <section>
       <SectionHeader title="Recent Performances" sub="Standout contributions from the last 24 hours" icon="⚡" />
       {loading ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="h-20 animate-pulse rounded-xl border border-border bg-card" />)}
+          {[0,1,2,3,4,5].map((i) => <div key={i} className="h-20 animate-pulse rounded-xl border border-border bg-card" />)}
         </div>
       ) : !perfs.length ? (
-        <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-          No recent performances in the last 24 hours.
-        </div>
+        <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">No recent performances in the last 24 hours.</div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {perfs.map((p) => (
@@ -800,7 +778,7 @@ function RecentPerformances() {
     </section>
   );
 }
- 
+
 function ArrowRight() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none">

@@ -2,7 +2,7 @@
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-export const Route = createFileRoute("/auth/callback")({
+export const Route = createFileRoute("/auth_/callback")({
   ssr: false,
   component: AuthCallbackPage,
 });
@@ -19,17 +19,17 @@ function AuthCallbackPage() {
         .exchangeCodeForSession(code)
         .then(({ error }) => {
           if (error) {
-            console.error("[auth/callback] exchangeCodeForSession error:", error.message);
+            console.error("[auth/callback] error:", error.message);
             navigate({ to: "/auth", search: { mode: "login" } });
           } else {
-            navigate({ to: "/dashboard" });
+            navigate({ to: "/" });
           }
         });
     } else {
       const { data: listener } = supabase.auth.onAuthStateChange((event) => {
         if (event === "SIGNED_IN") {
           listener.subscription.unsubscribe();
-          navigate({ to: "/dashboard" });
+          navigate({ to: "/" });
         }
       });
 

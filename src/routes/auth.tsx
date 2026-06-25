@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { z } from "zod";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { lovable } from "@/integrations/lovable";
  
 const searchSchema = z.object({
   mode: z.enum(["login", "register"]).default("login"),
@@ -36,7 +37,7 @@ function AuthPage() {
   // already signed in? bounce to dashboard
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
-      if (data.user) navigate({ to: "/dashboard" });
+      if (data.user) navigate({ to: "/" });
     });
   }, [navigate]);
  
@@ -52,18 +53,18 @@ function AuthPage() {
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/dashboard`,
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
             data: { full_name: fullName, username, city, role },
           },
         });
         if (error) throw error;
         toast.success("Welcome to JustCric! 🏏");
-        navigate({ to: "/dashboard" });
+        navigate({ to: "/" });
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         toast.success("Welcome back!");
-        navigate({ to: "/dashboard" });
+        navigate({ to: "/" });
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
@@ -73,18 +74,18 @@ function AuthPage() {
   };
  
   const handleGoogle = async () => {
-  setLoading(true);
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider: "google",
-    options: {
-      redirectTo: "https://www.justcric.in/auth/callback",
-    },
-  });
-  if (error) {
-    toast.error(error.message ?? "Google sign-in failed");
-    setLoading(false);
-  }
-};
+    setLoading(true);
+    const result = await lovable.auth.signInWithOAuth("google", {
+      redirect_uri: window.location.origin + "/dashboard",
+    });
+    if (result.error) {
+      toast.error(result.error.message ?? "Google sign-in failed");
+      setLoading(false);
+      return;
+    }
+    if (result.redirected) return;
+    navigate({ to: "/" });
+  };
  
   return (
     <div className="dark relative min-h-screen overflow-hidden bg-background text-foreground">
