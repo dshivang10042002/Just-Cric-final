@@ -316,7 +316,7 @@ function MyMatches() {
         .select("id, status, result_text, overs, venue, created_at, team_a:teams!matches_team_a_id_fkey(name, short_name, jersey_color), team_b:teams!matches_team_b_id_fkey(name, short_name, jersey_color), innings(batting_team_id, runs, wickets, balls, target)")
         .eq("created_by", u.user.id)
         .order("created_at", { ascending: false })
-        .limit(4);
+        .limit(8);
       setMatches((data as unknown as MyMatchRow[]) ?? []);
       setLoading(false);
     })();
@@ -324,9 +324,13 @@ function MyMatches() {
 
   if (loading) return (
     <section>
-      <SectionHeader title="My Matches" sub="Your recent matches" icon="📋" />
-      <div className="grid gap-4 sm:grid-cols-2">
-        {[0,1,2,3].map((i) => <div key={i} className="h-36 animate-pulse rounded-2xl border border-border bg-card" />)}
+      <div className="flex items-center justify-between mb-4">
+        <SectionHeader title="My Matches" sub="Your recent scorecards" icon="📋" />
+      </div>
+      <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-none -mx-4 px-4 sm:-mx-6 sm:px-6">
+        {[0,1,2,3].map((i) => (
+          <div key={i} className="h-44 w-72 shrink-0 animate-pulse rounded-2xl border border-border bg-card" />
+        ))}
       </div>
     </section>
   );
@@ -335,7 +339,7 @@ function MyMatches() {
 
   return (
     <section>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <span className="text-2xl">📋</span>
           <div>
@@ -344,12 +348,23 @@ function MyMatches() {
           </div>
         </div>
         <Link to="/matches"
-          className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-4 py-1.5 text-xs font-semibold text-foreground transition hover:border-primary/40 hover:text-primary">
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-card px-4 py-1.5 text-xs font-semibold text-foreground transition hover:border-primary/40 hover:text-primary">
           Show all →
         </Link>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        {matches.map((m) => <CricMatchCard key={m.id} m={m} />)}
+      {/* Horizontal scrollable row */}
+      <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-none -mx-4 px-4 sm:-mx-6 sm:px-6">
+        {matches.map((m) => (
+          <div key={m.id} className="w-72 shrink-0 sm:w-80">
+            <CricMatchCard m={m} />
+          </div>
+        ))}
+        {/* Show all card */}
+        <Link to="/matches"
+          className="flex w-36 shrink-0 flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-card/50 text-center transition hover:border-primary/40 hover:bg-card">
+          <span className="text-2xl">📋</span>
+          <span className="text-xs font-semibold text-primary">View all matches</span>
+        </Link>
       </div>
     </section>
   );
