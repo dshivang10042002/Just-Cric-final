@@ -127,9 +127,7 @@ function Landing() {
           <>
             <div id="live"><HeroLiveSlider /></div>
             <MyMatches />
-            <TopBatters />
-            <TopBowlers />
-            <BestAllRounders />
+            <BestPlayers />
             <BestStrikers />
             <MVPLeaderboard />
             <RecentPerformances />
@@ -316,7 +314,7 @@ function MyMatches() {
         .select("id, status, result_text, overs, venue, created_at, team_a:teams!matches_team_a_id_fkey(name, short_name, jersey_color), team_b:teams!matches_team_b_id_fkey(name, short_name, jersey_color), innings(batting_team_id, runs, wickets, balls, target)")
         .eq("created_by", u.user.id)
         .order("created_at", { ascending: false })
-        .limit(8);
+        .limit(4);
       setMatches((data as unknown as MyMatchRow[]) ?? []);
       setLoading(false);
     })();
@@ -546,10 +544,10 @@ function PlayerCard({ p, rank, valueLabel }: { p: PlayerStat; rank: number; valu
   );
 }
 
-function PlayerGrid({ players, valueLabel, loading }: { players: PlayerStat[]; valueLabel: string; loading: boolean }) {
+function PlayerSlider({ players, valueLabel, loading }: { players: PlayerStat[]; valueLabel: string; loading: boolean }) {
   if (loading) return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {[0,1,2,3,4,5].map((i) => <div key={i} className="h-36 animate-pulse rounded-2xl border border-border bg-card" />)}
+    <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-none -mx-4 px-4 sm:-mx-6 sm:px-6">
+      {[0,1,2,3,4,5].map((i) => <div key={i} className="h-44 w-60 shrink-0 animate-pulse rounded-2xl border border-border bg-card" />)}
     </div>
   );
   if (!players.length) return (
@@ -558,16 +556,21 @@ function PlayerGrid({ players, valueLabel, loading }: { players: PlayerStat[]; v
     </div>
   );
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {players.map((p, i) => <PlayerCard key={p.id} p={p} rank={i + 1} valueLabel={valueLabel} />)}
+    <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-none -mx-4 px-4 sm:-mx-6 sm:px-6">
+      {players.map((p, i) => (
+        <div key={p.id} className="w-60 shrink-0 sm:w-64">
+          <PlayerCard p={p} rank={i + 1} valueLabel={valueLabel} />
+        </div>
+      ))}
     </div>
   );
 }
 
 /* ════════════════════════════════════════
-   TOP BATTERS
+   BEST PLAYERS (combined batting + bowling)
+   Score = runs + wickets*20
 ════════════════════════════════════════ */
-function TopBatters() {
+function BestPlayers() {
   const [players, setPlayers] = useState<PlayerStat[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -575,144 +578,14 @@ function TopBatters() {
     (async () => {
       const { data } = await supabase
         .from("balls")
-        .select("batter_id, batter_name, runs, extra_type, team_members!balls_batter_id_fkey(player_name, team_id, role, batting_style, bowling_style, profiles(avatar_url, city, batting_style, bowling_style, role), teams:team_members_team_id_fkey(name))")
-        .not("batter_id", "is", null)
+        .select("batter_id, bowler_id, batter_name, bowler_name, runs, extra_type, is_wicket, wicket_type, team_members!balls_batter_id_fkey(player_name, team_id, role, batting_style, bowling_style, profiles(avatar_url, city, batting_style, bowling_style, role), teams:team_members_team_id_fkey(name))")
         .limit(5000);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const map = new Map<string, any>();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (data as any[] ?? []).forEach((row: any) => {
-        if (!row.batter_id) return;
-        const isBat = row.extra_type !== "wide" && row.extra_type !== "bye" && row.extra_type !== "legbye";
-        if (!isBat) return;
-        const r = row.extra_type === "noball" ? row.runs - 1 : row.runs;
-        const tm = row.team_members;
-        if (!map.has(row.batter_id)) {
-          map.set(row.batter_id, {
-            name: tm?.player_name ?? row.batter_name ?? "Unknown",
-            avatar: tm?.profiles?.avatar_url ?? null,
-            runs: 0, cnt: 0,
-            team: tm?.teams?.name ?? "—",
-            role: tm?.profiles?.role ?? tm?.role ?? null,
-            city: tm?.profiles?.city ?? null,
-            batting_style: tm?.profiles?.batting_style ?? tm?.batting_style ?? null,
-            bowling_style: tm?.profiles?.bowling_style ?? tm?.bowling_style ?? null,
-          });
-        }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const e = map.get(row.batter_id) as any;
-        e.runs += r;
-        e.cnt++;
-      });
 
-      const sorted: PlayerStat[] = [...map.entries()]
-        .sort((a, b) => b[1].runs - a[1].runs)
-        .slice(0, 9)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map(([id, v]: [string, any]) => ({
-          id, name: v.name, avatar: v.avatar,
-          value: v.runs, sub: `${v.runs} runs`,
-          team: v.team, role: v.role, city: v.city,
-          batting_style: v.batting_style, bowling_style: v.bowling_style,
-          matches: v.cnt,
-        }));
-      setPlayers(sorted);
-      setLoading(false);
-    })();
-  }, []);
-
-  return (
-    <section>
-      <SectionHeader title="Famous Batters" sub="Most runs scored on JustCric" icon="🏏" />
-      <PlayerGrid players={players} valueLabel="Runs" loading={loading} />
-    </section>
-  );
-}
-
-/* ════════════════════════════════════════
-   TOP BOWLERS
-════════════════════════════════════════ */
-function TopBowlers() {
-  const [players, setPlayers] = useState<PlayerStat[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    (async () => {
-      const { data } = await supabase
-        .from("balls")
-        .select("bowler_id, bowler_name, is_wicket, wicket_type, team_members!balls_bowler_id_fkey(player_name, team_id, role, batting_style, bowling_style, profiles(avatar_url, city, batting_style, bowling_style, role), teams:team_members_team_id_fkey(name))")
-        .eq("is_wicket", true)
-        .not("bowler_id", "is", null)
-        .limit(5000);
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const map = new Map<string, any>();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (data as any[] ?? []).forEach((row: any) => {
-        if (!row.bowler_id) return;
-        if (row.wicket_type === "runout" || row.wicket_type === "retired_hurt") return;
-        const tm = row.team_members;
-        if (!map.has(row.bowler_id)) {
-          map.set(row.bowler_id, {
-            name: tm?.player_name ?? row.bowler_name ?? "Unknown",
-            avatar: tm?.profiles?.avatar_url ?? null,
-            wkts: 0, cnt: 0,
-            team: tm?.teams?.name ?? "—",
-            role: tm?.profiles?.role ?? tm?.role ?? null,
-            city: tm?.profiles?.city ?? null,
-            batting_style: tm?.profiles?.batting_style ?? tm?.batting_style ?? null,
-            bowling_style: tm?.profiles?.bowling_style ?? tm?.bowling_style ?? null,
-          });
-        }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const e = map.get(row.bowler_id) as any;
-        e.wkts++;
-        e.cnt++;
-      });
-
-      const sorted: PlayerStat[] = [...map.entries()]
-        .sort((a, b) => b[1].wkts - a[1].wkts)
-        .slice(0, 9)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map(([id, v]: [string, any]) => ({
-          id, name: v.name, avatar: v.avatar,
-          value: v.wkts, sub: `${v.wkts} wickets`,
-          team: v.team, role: v.role, city: v.city,
-          batting_style: v.batting_style, bowling_style: v.bowling_style,
-          matches: v.cnt,
-        }));
-      setPlayers(sorted);
-      setLoading(false);
-    })();
-  }, []);
-
-  return (
-    <section>
-      <SectionHeader title="Famous Bowlers" sub="Most wickets taken on JustCric" icon="🎳" />
-      <PlayerGrid players={players} valueLabel="Wickets" loading={loading} />
-    </section>
-  );
-}
-
-/* ════════════════════════════════════════
-   BEST ALL ROUNDERS
-════════════════════════════════════════ */
-function BestAllRounders() {
-  const [players, setPlayers] = useState<PlayerStat[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    (async () => {
-      const { data } = await supabase
-        .from("balls")
-        .select("batter_id, bowler_id, batter_name, bowler_name, runs, extra_type, is_wicket, wicket_type, team_members!balls_batter_id_fkey(player_name, profiles(avatar_url), teams:team_members_team_id_fkey(name))")
-        .limit(5000);
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const map = new Map<string, any>();
-      const ensure = (id: string, name: string, avatar: string | null, team: string) => {
-        if (!map.has(id)) map.set(id, { name, avatar, runs: 0, wkts: 0, team });
+      const ensure = (id: string, name: string, avatar: string | null, team: string, role: string | null, city: string | null, bat: string | null, bowl: string | null) => {
+        if (!map.has(id)) map.set(id, { name, avatar, runs: 0, wkts: 0, cnt: 0, team, role, city, batting_style: bat, bowling_style: bowl });
         return map.get(id);
       };
 
@@ -722,9 +595,11 @@ function BestAllRounders() {
           const isBat = row.extra_type !== "wide" && row.extra_type !== "bye" && row.extra_type !== "legbye";
           if (isBat) {
             const r = row.extra_type === "noball" ? row.runs - 1 : row.runs;
-            const tm = row.team_members;
-            const p = ensure(row.batter_id, tm?.player_name ?? row.batter_name ?? "—", tm?.profiles?.avatar_url ?? null, tm?.teams?.name ?? "—");
+            const tm = row.team_members ?? {};
+            const prof = tm.profiles ?? {};
+            const p = ensure(row.batter_id, tm.player_name ?? row.batter_name ?? "—", prof.avatar_url ?? null, tm.teams?.name ?? "—", prof.role ?? tm.role ?? null, prof.city ?? null, prof.batting_style ?? tm.batting_style ?? null, prof.bowling_style ?? tm.bowling_style ?? null);
             p.runs += r;
+            p.cnt++;
           }
         }
         if (row.bowler_id && row.is_wicket && row.wicket_type !== "runout" && row.wicket_type !== "retired_hurt") {
@@ -739,11 +614,13 @@ function BestAllRounders() {
           id, name: v.name, avatar: v.avatar, team: v.team,
           value: v.runs + v.wkts * 20,
           sub: `${v.runs}R ${v.wkts}W`,
-          role: null, city: null, batting_style: null, bowling_style: null, matches: 0,
+          role: v.role, city: v.city,
+          batting_style: v.batting_style, bowling_style: v.bowling_style,
+          matches: v.cnt,
         }))
         .filter((p) => p.value > 0)
         .sort((a, b) => b.value - a.value)
-        .slice(0, 9);
+        .slice(0, 12);
       setPlayers(sorted);
       setLoading(false);
     })();
@@ -751,8 +628,8 @@ function BestAllRounders() {
 
   return (
     <section>
-      <SectionHeader title="Best All Rounders" sub="Runs + (Wickets x 20) combined score" icon="⚡" />
-      <PlayerGrid players={players} valueLabel="Score" loading={loading} />
+      <SectionHeader title="Best Players" sub="Top performers by runs + wickets score" icon="⭐" />
+      <PlayerSlider players={players} valueLabel="Score" loading={loading} />
     </section>
   );
 }
@@ -806,7 +683,7 @@ function BestStrikers() {
   return (
     <section>
       <SectionHeader title="Best Strikers" sub="Highest strike rate (min. 20 balls faced)" icon="💥" />
-      <PlayerGrid players={players} valueLabel="SR" loading={loading} />
+      <PlayerSlider players={players} valueLabel="SR" loading={loading} />
     </section>
   );
 }
@@ -862,7 +739,7 @@ function MVPLeaderboard() {
   return (
     <section>
       <SectionHeader title="MVP Leaderboard" sub="Most Player of the Match awards" icon="🏆" />
-      <PlayerGrid players={players} valueLabel="MOTM" loading={loading} />
+      <PlayerSlider players={players} valueLabel="MOTM" loading={loading} />
     </section>
   );
 }
@@ -936,26 +813,26 @@ function RecentPerformances() {
     <section>
       <SectionHeader title="Recent Performances" sub="Standout contributions from the last 24 hours" icon="⚡" />
       {loading ? (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {[0,1,2,3,4,5].map((i) => <div key={i} className="h-20 animate-pulse rounded-xl border border-border bg-card" />)}
+        <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-none -mx-4 px-4 sm:-mx-6 sm:px-6">
+          {[0,1,2,3,4,5].map((i) => <div key={i} className="h-24 w-64 shrink-0 animate-pulse rounded-2xl border border-border bg-card" />)}
         </div>
       ) : !perfs.length ? (
         <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">No recent performances in the last 24 hours.</div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-none -mx-4 px-4 sm:-mx-6 sm:px-6">
           {perfs.map((p) => (
-            <div key={p.id} className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${p.type === "motm" ? "border-yellow-400/30 bg-yellow-400/5" : "border-border bg-card"}`}>
+            <div key={p.id} className={`flex w-64 shrink-0 items-center gap-3 rounded-2xl border px-4 py-4 shadow-elevate ${p.type === "motm" ? "border-yellow-400/30 bg-yellow-400/5" : "border-border bg-card"}`}>
               {p.avatar ? (
-                <img src={p.avatar} alt={p.playerName} className="h-10 w-10 shrink-0 rounded-full object-cover border border-border" />
+                <img src={p.avatar} alt={p.playerName} className="h-12 w-12 shrink-0 rounded-2xl object-cover border border-border shadow-sm" />
               ) : (
-                <div className="h-10 w-10 shrink-0 grid place-items-center rounded-full bg-primary/15 font-display text-base text-primary">
+                <div className="h-12 w-12 shrink-0 grid place-items-center rounded-2xl bg-primary/15 font-display text-lg text-primary border border-primary/20">
                   {p.playerName.slice(0, 1).toUpperCase()}
                 </div>
               )}
               <div className="min-w-0 flex-1">
                 <div className="truncate font-semibold text-sm">{p.playerName}</div>
-                <div className="truncate text-xs text-muted-foreground">{p.line}</div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">{p.date}</div>
+                <div className="truncate text-xs text-muted-foreground mt-0.5">{p.line}</div>
+                <div className="text-[10px] text-muted-foreground mt-1">{p.date}</div>
               </div>
             </div>
           ))}
