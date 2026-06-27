@@ -6,12 +6,12 @@ import {
   ArrowLeft, Zap, Target, Shield, Star, TrendingUp,
   Award, ChevronDown, ChevronUp, Loader2,
 } from "lucide-react";
- 
+
 export const Route = createFileRoute("/_authenticated/my-stats")({
   head: () => ({ meta: [{ title: "My Stats — JustCric" }] }),
   component: MyStatsPage,
 });
- 
+
 /* ─── Types ─── */
 type BallRow = {
   runs: number; extra_type: string | null; is_wicket: boolean;
@@ -31,7 +31,7 @@ type MatchRow = {
   team_b: { name: string } | null;
 };
 type MemberRow = { id: string; team_id: string };
- 
+
 /* ─── Per-match stats ─── */
 type MatchStats = {
   matchId: string;
@@ -46,7 +46,7 @@ type MatchStats = {
   aiInsight: string | null;
   loadingInsight: boolean;
 };
- 
+
 /* ════════════════════════════════════════
    PAGE
 ════════════════════════════════════════ */
@@ -59,12 +59,12 @@ function MyStatsPage() {
   const [loading, setLoading] = useState(true);
   const [matchStats, setMatchStats] = useState<MatchStats[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
- 
+
   useEffect(() => {
     (async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return;
- 
+
       // Get all team_member ids for this profile
       const { data: members } = await supabase
         .from("team_members")
@@ -73,16 +73,15 @@ function MyStatsPage() {
       const mems = (members as MemberRow[]) ?? [];
       if (!mems.length) { setLoading(false); return; }
       const memberIds = mems.map((m) => m.id);
-      // Use first member id as primary for now
-      setMemberId(memberIds[0]);
- 
+      setMemberId(memberIds[0]); // primary display id (for UI)
+
       // Get all balls involving this player
       const { data: bs } = await supabase
         .from("balls")
         .select("runs, extra_type, is_wicket, wicket_type, batter_id, bowler_id, dismissed_player_id, innings_id, over_number")
         .or(memberIds.map((id) => `batter_id.eq.${id},bowler_id.eq.${id},dismissed_player_id.eq.${id}`).join(","));
       setBalls((bs as BallRow[]) ?? []);
- 
+
       // Get all innings ids from those balls
       const innIds = [...new Set((bs as BallRow[] ?? []).map((b) => b.innings_id))];
       if (innIds.length) {
@@ -91,7 +90,7 @@ function MyStatsPage() {
           .select("id, innings_no, batting_team_id, bowling_team_id, match_id")
           .in("id", innIds);
         setInnings((inns as InningsRow[]) ?? []);
- 
+
         const matchIds = [...new Set((inns as InningsRow[] ?? []).map((i) => i.match_id))];
         if (matchIds.length) {
           const { data: ms } = await supabase
@@ -100,7 +99,7 @@ function MyStatsPage() {
             .in("id", matchIds)
             .order("created_at", { ascending: false });
           setMatches((ms as unknown as MatchRow[]) ?? []);
- 
+
           // Track MOTM matches
           const motmSet = new Set<string>();
           (ms as unknown as MatchRow[] ?? []).forEach((m) => {
@@ -112,14 +111,14 @@ function MyStatsPage() {
       setLoading(false);
     })();
   }, []);
- 
+
   /* ── Overall aggregates ── */
   const overall = useMemo(() => {
     const memberIds = memberId ? [memberId] : [];
     const batInnings = new Map<string, { runs: number; balls: number; fours: number; sixes: number; out: boolean }>();
     const bowlInnings = new Map<string, { legal: number; runs: number; wkts: number }>();
     let catches = 0, runouts = 0, stumpings = 0;
- 
+
     balls.forEach((b) => {
       // Batting
       if (memberIds.includes(b.batter_id ?? "")) {
@@ -158,7 +157,7 @@ function MyStatsPage() {
         if (wt === "stumped" && memberIds.includes(b.bowler_id ?? "")) stumpings++;
       }
     });
- 
+
     const batArr = [...batInnings.values()];
     const totalRuns = batArr.reduce((s, r) => s + r.runs, 0);
     const totalBalls = batArr.reduce((s, r) => s + r.balls, 0);
@@ -170,7 +169,7 @@ function MyStatsPage() {
     const sixes = batArr.reduce((s, r) => s + r.sixes, 0);
     const batAvg = totalOuts > 0 ? totalRuns / totalOuts : totalRuns;
     const batSR = totalBalls > 0 ? (totalRuns / totalBalls) * 100 : 0;
- 
+
     const bowlArr = [...bowlInnings.values()];
     const totalWkts = bowlArr.reduce((s, r) => s + r.wkts, 0);
     const totalBowlRuns = bowlArr.reduce((s, r) => s + r.runs, 0);
@@ -178,7 +177,7 @@ function MyStatsPage() {
     const economy = totalLegal > 0 ? (totalBowlRuns / totalLegal) * 6 : 0;
     const bowlAvg = totalWkts > 0 ? totalBowlRuns / totalWkts : 0;
     const bestFigures = bowlArr.reduce((best, r) => r.wkts > best.wkts || (r.wkts === best.wkts && r.runs < best.runs) ? r : best, { wkts: 0, runs: 0 });
- 
+
     return {
       matches: matches.length,
       motm: motmMatchIds.size,
@@ -187,16 +186,18 @@ function MyStatsPage() {
       field: { catches, runouts, stumpings },
     };
   }, [balls, memberId, matches, motmMatchIds]);
- 
-  /* ── Per-match stats ── */
+
+  /* ── Per-match stats — use ALL member ids ── */
   useEffect(() => {
     if (!memberId || !matches.length) return;
+    const allMyIds = [memberId];
+
     const stats: MatchStats[] = matches.map((m) => {
       const matchInnings = innings.filter((i) => i.match_id === m.id);
       const matchBalls = balls.filter((b) => matchInnings.some((i) => i.id === b.innings_id));
- 
-      // Batting
-      const batBalls = matchBalls.filter((b) => b.batter_id === memberId);
+
+      // Batting — check all member IDs
+      const batBalls = matchBalls.filter((b) => allMyIds.includes(b.batter_id ?? ""));
       let bRuns = 0, bBalls = 0, bFours = 0, bSixes = 0;
       batBalls.forEach((b) => {
         if (b.extra_type !== "wide") bBalls++;
@@ -206,11 +207,11 @@ function MyStatsPage() {
           bRuns += r; if (r === 4) bFours++; if (r === 6) bSixes++;
         }
       });
-      const batOut = matchBalls.some((b) => b.dismissed_player_id === memberId && b.is_wicket);
+      const batOut = matchBalls.some((b) => allMyIds.includes(b.dismissed_player_id ?? "") && b.is_wicket);
       const batStats = bBalls > 0 || batOut ? { runs: bRuns, balls: bBalls, fours: bFours, sixes: bSixes, out: batOut } : null;
- 
-      // Bowling
-      const bowlBalls = matchBalls.filter((b) => b.bowler_id === memberId);
+
+      // Bowling — check all member IDs
+      const bowlBalls = matchBalls.filter((b) => allMyIds.includes(b.bowler_id ?? ""));
       let bowlRuns = 0, bowlLegal = 0, bowlWkts = 0;
       bowlBalls.forEach((b) => {
         bowlRuns += b.runs;
@@ -218,17 +219,17 @@ function MyStatsPage() {
         if (b.is_wicket && b.wicket_type !== "runout" && b.wicket_type !== "retired_hurt") bowlWkts++;
       });
       const bowlStats = bowlLegal > 0 ? { legal: bowlLegal, runs: bowlRuns, wkts: bowlWkts } : null;
- 
+
       // Fielding
       let mCatches = 0, mRunouts = 0, mStumpings = 0;
       matchBalls.forEach((b) => {
         if (!b.is_wicket) return;
         const wt = b.wicket_type ?? "";
-        if ((wt === "caught" || wt === "caught_behind") && b.bowler_id === memberId) mCatches++;
-        if (wt === "stumped" && b.bowler_id === memberId) mStumpings++;
-        if (wt === "runout" && b.dismissed_player_id === memberId) mRunouts++;
+        if ((wt === "caught" || wt === "caught_behind") && allMyIds.includes(b.bowler_id ?? "")) mCatches++;
+        if (wt === "stumped" && allMyIds.includes(b.bowler_id ?? "")) mStumpings++;
+        if (wt === "runout" && allMyIds.includes(b.dismissed_player_id ?? "")) mRunouts++;
       });
- 
+
       return {
         matchId: m.id,
         matchLabel: `${m.team_a?.name ?? "Team A"} vs ${m.team_b?.name ?? "Team B"}`,
@@ -245,27 +246,27 @@ function MyStatsPage() {
     });
     setMatchStats(stats);
   }, [memberId, matches, innings, balls, motmMatchIds]);
- 
+
   const loadInsight = async (matchId: string) => {
     const ms = matchStats.find((m) => m.matchId === matchId);
     if (!ms || ms.aiInsight || ms.loadingInsight) return;
- 
+
     setMatchStats((prev) => prev.map((m) => m.matchId === matchId ? { ...m, loadingInsight: true } : m));
- 
+
     const prompt = `You are a cricket coach giving personal feedback to a player. Based on their match stats, write a SHORT (2-3 sentences max), MOTIVATING and SPECIFIC message that:
 1. Acknowledges their actual contribution with specific numbers
 2. Highlights something positive even if stats are modest
 3. Gives one actionable encouragement for next match
- 
+
 Player stats for this match:
 ${ms.bat ? `Batting: ${ms.bat.runs} runs off ${ms.bat.balls} balls, ${ms.bat.fours} fours, ${ms.bat.sixes} sixes. ${ms.bat.out ? "Got out." : "Not out."}` : "Did not bat."}
 ${ms.bowl ? `Bowling: ${Math.floor(ms.bowl.legal / 6)}.${ms.bowl.legal % 6} overs, ${ms.bowl.runs} runs, ${ms.bowl.wkts} wickets.` : "Did not bowl."}
 ${ms.field.catches + ms.field.runouts + ms.field.stumpings > 0 ? `Fielding: ${ms.field.catches} catch(es), ${ms.field.runouts} run out(s), ${ms.field.stumpings} stumping(s).` : ""}
 ${ms.wasMOTM ? "Was awarded Man of the Match!" : ""}
 Match result: ${ms.result ?? "Unknown"}
- 
+
 Write in second person (You...). Be genuine, not generic. Keep it under 60 words.`;
- 
+
     try {
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -283,7 +284,7 @@ Write in second person (You...). Be genuine, not generic. Keep it under 60 words
       setMatchStats((prev) => prev.map((m) => m.matchId === matchId ? { ...m, aiInsight: "Great effort out there! Keep pushing — every match is a chance to grow.", loadingInsight: false } : m));
     }
   };
- 
+
   if (loading) return (
     <div className="min-h-screen bg-background"><Navbar />
       <div className="mx-auto max-w-3xl px-4 py-10 space-y-3">
@@ -291,7 +292,7 @@ Write in second person (You...). Be genuine, not generic. Keep it under 60 words
       </div>
     </div>
   );
- 
+
   if (!memberId) return (
     <div className="min-h-screen bg-background"><Navbar />
       <main className="mx-auto max-w-3xl px-4 py-10 text-center sm:px-6">
@@ -306,7 +307,7 @@ Write in second person (You...). Be genuine, not generic. Keep it under 60 words
       </main>
     </div>
   );
- 
+
   return (
     <div className="min-h-screen bg-background pb-12">
       <Navbar />
@@ -316,10 +317,10 @@ Write in second person (You...). Be genuine, not generic. Keep it under 60 words
         </Link>
         <h1 className="mt-3 font-display text-4xl tracking-tight">My <span className="text-primary">Stats</span></h1>
         <p className="mt-1 text-sm text-muted-foreground">{overall.matches} matches · {overall.motm} Player of the Match awards</p>
- 
+
         {/* ── OVERALL KPI CARDS ── */}
         <div className="mt-6 space-y-4">
- 
+
           {/* Batting */}
           <KpiSection title="Batting" icon={<Zap className="h-4 w-4" />} color="primary">
             <KpiGrid>
@@ -334,7 +335,7 @@ Write in second person (You...). Be genuine, not generic. Keep it under 60 words
               <Kpi label="6s" value={overall.bat.sixes} highlight />
             </KpiGrid>
           </KpiSection>
- 
+
           {/* Bowling */}
           <KpiSection title="Bowling" icon={<Target className="h-4 w-4" />} color="accent">
             <KpiGrid>
@@ -346,7 +347,7 @@ Write in second person (You...). Be genuine, not generic. Keep it under 60 words
               <Kpi label="Best" value={overall.bowl.best} highlight />
             </KpiGrid>
           </KpiSection>
- 
+
           {/* Fielding */}
           <KpiSection title="Fielding" icon={<Shield className="h-4 w-4" />} color="gold">
             <KpiGrid>
@@ -355,7 +356,7 @@ Write in second person (You...). Be genuine, not generic. Keep it under 60 words
               <Kpi label="Stumpings" value={overall.field.stumpings} />
             </KpiGrid>
           </KpiSection>
- 
+
           {/* Honours */}
           <KpiSection title="Honours" icon={<Award className="h-4 w-4" />} color="gold">
             <KpiGrid>
@@ -364,14 +365,14 @@ Write in second person (You...). Be genuine, not generic. Keep it under 60 words
             </KpiGrid>
           </KpiSection>
         </div>
- 
+
         {/* ── PER-MATCH BREAKDOWN ── */}
         <div className="mt-10">
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp className="h-5 w-5 text-primary" />
             <h2 className="font-display text-2xl">Match by Match</h2>
           </div>
- 
+
           {matchStats.length === 0 ? (
             <div className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
               No match data yet.
@@ -412,7 +413,7 @@ Write in second person (You...). Be genuine, not generic. Keep it under 60 words
                       ? <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
                       : <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />}
                   </button>
- 
+
                   {/* Expanded detail */}
                   {expanded === ms.matchId && (
                     <div className="border-t border-border px-4 py-4 space-y-4">
@@ -444,14 +445,14 @@ Write in second person (You...). Be genuine, not generic. Keep it under 60 words
                           </StatBlock>
                         )}
                       </div>
- 
+
                       {/* Result */}
                       {ms.result && (
                         <div className="text-xs text-muted-foreground border-t border-border pt-3">
                           Result: <span className="font-semibold text-foreground">{ms.result}</span>
                         </div>
                       )}
- 
+
                       {/* AI Motivational Insight */}
                       <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
                         <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-primary font-bold mb-2">
@@ -467,7 +468,7 @@ Write in second person (You...). Be genuine, not generic. Keep it under 60 words
                           <p className="text-sm text-muted-foreground italic">Tap to expand and load analysis.</p>
                         )}
                       </div>
- 
+
                       <Link
                         to="/match/$matchId"
                         params={{ matchId: ms.matchId }}
@@ -486,7 +487,7 @@ Write in second person (You...). Be genuine, not generic. Keep it under 60 words
     </div>
   );
 }
- 
+
 /* ── UI primitives ── */
 function KpiSection({ title, icon, color, children }: {
   title: string; icon: React.ReactNode; color: "primary" | "accent" | "gold"; children: React.ReactNode;
@@ -510,11 +511,11 @@ function KpiSection({ title, icon, color, children }: {
     </div>
   );
 }
- 
+
 function KpiGrid({ children }: { children: React.ReactNode }) {
   return <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5">{children}</div>;
 }
- 
+
 function Kpi({ label, value, highlight }: { label: string; value: string | number; highlight?: boolean }) {
   return (
     <div className="rounded-lg border border-border bg-card px-3 py-2.5 text-center">
@@ -523,7 +524,7 @@ function Kpi({ label, value, highlight }: { label: string; value: string | numbe
     </div>
   );
 }
- 
+
 function StatBlock({ title, color, children }: { title: string; color: "primary" | "accent" | "gold"; children: React.ReactNode }) {
   const textColors = { primary: "text-primary", accent: "text-accent", gold: "text-yellow-500" };
   return (
@@ -533,7 +534,7 @@ function StatBlock({ title, color, children }: { title: string; color: "primary"
     </div>
   );
 }
- 
+
 function StatRow({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="flex items-center justify-between text-xs">

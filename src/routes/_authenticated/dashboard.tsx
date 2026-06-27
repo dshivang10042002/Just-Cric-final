@@ -58,34 +58,44 @@ function Dashboard() {
         setStats({ matches: 0, runs: 0, wickets: 0, best: null });
         return;
       }
-      const [{ data: batBalls }, { data: bowlBalls }] = await Promise.all([
-        supabase
-          .from("balls")
-          .select("innings_id, runs, extra_type")
-          .in("batter_id", memberIds),
-        supabase
-          .from("balls")
-          .select("is_wicket, wicket_type")
-          .in("bowler_id", memberIds),
-      ]);
+      // Fetch ALL balls for this player across ALL teams they belong to
+      const orFilter = [
+        ...memberIds.map((id) => `batter_id.eq.${id}`),
+        ...memberIds.map((id) => `bowler_id.eq.${id}`),
+      ].join(",");
 
-      // Per-innings runs (only batter's runs: exclude wides/byes/legbyes; subtract no-ball penalty)
+      const { data: allBalls } = await supabase
+        .from("balls")
+        .select("innings_id, runs, extra_type, is_wicket, wicket_type, batter_id, bowler_id")
+        .or(orFilter);
+
+      const balls = (allBalls ?? []) as {
+        innings_id: string; runs: number; extra_type: string | null;
+        is_wicket: boolean; wicket_type: string | null;
+        batter_id: string | null; bowler_id: string | null;
+      }[];
+
+      // Per-innings batting runs
       const perInn = new Map<string, number>();
       const inningsSet = new Set<string>();
-      for (const b of batBalls ?? []) {
-        inningsSet.add(b.innings_id as string);
-        if (b.extra_type === "wide" || b.extra_type === "bye" || b.extra_type === "legbye") continue;
-        const r = b.extra_type === "noball" ? (b.runs as number) - 1 : (b.runs as number);
-        perInn.set(b.innings_id as string, (perInn.get(b.innings_id as string) ?? 0) + r);
+      for (const b of balls) {
+        if (!memberIds.includes(b.batter_id ?? "")) continue;
+        inningsSet.add(b.innings_id);
+        const isExtra = b.extra_type === "wide" || b.extra_type === "bye" || b.extra_type === "legbye";
+        if (isExtra) continue;
+        const r = b.extra_type === "noball" ? b.runs - 1 : b.runs;
+        perInn.set(b.innings_id, (perInn.get(b.innings_id) ?? 0) + r);
       }
       const totalRuns = Array.from(perInn.values()).reduce((a, b) => a + b, 0);
       const best = perInn.size > 0 ? Math.max(...perInn.values()) : null;
 
-      const wickets = (bowlBalls ?? []).filter(
-        (b) => b.is_wicket && b.wicket_type !== "runout",
+      // Wickets — exclude runout and retired_hurt
+      const wickets = balls.filter(
+        (b) => memberIds.includes(b.bowler_id ?? "") && b.is_wicket
+          && b.wicket_type !== "runout" && b.wicket_type !== "retired_hurt"
       ).length;
 
-      // Distinct matches: join via innings → match
+      // Distinct matches via innings
       let matches = 0;
       if (inningsSet.size > 0) {
         const { data: innMatches } = await supabase
