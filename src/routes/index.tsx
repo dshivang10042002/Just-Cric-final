@@ -64,7 +64,7 @@ type PlayerStat = {
   value: number; sub: string; team: string;
   role: string | null; city: string | null;
   batting_style: string | null; bowling_style: string | null;
-  matches: number;
+  matches: number; wkts?: number; runs?: number;
 };
 type RecentPerf = { id: string; matchLabel: string; date: string; playerName: string; avatar: string | null; line: string; type: "bat" | "bowl" | "motm" };
 
@@ -520,16 +520,27 @@ function PlayerCard({ p, rank, valueLabel }: { p: PlayerStat; rank: number; valu
           {p.city && <div className="text-[10px] text-muted-foreground/70 mt-0.5">📍 {p.city}</div>}
         </div>
       </div>
-      <div className="border-t border-border/50 grid grid-cols-3 divide-x divide-border/50">
-        <div className="px-3 py-2.5 text-center">
-          <div className={`font-display text-xl tabular-nums ${isTop3 ? rankColors[rank - 1] : "text-primary"}`}>{p.value}</div>
+      <div className="border-t border-border/50 grid grid-cols-4 divide-x divide-border/50">
+        <div className="px-2 py-2.5 text-center">
+          <div className={`font-display text-lg tabular-nums ${isTop3 ? rankColors[rank - 1] : "text-primary"}`}>{p.value}</div>
           <div className="text-[9px] uppercase tracking-wider text-muted-foreground mt-0.5">{valueLabel}</div>
         </div>
-        <div className="px-3 py-2.5 text-center">
-          <div className="font-display text-xl tabular-nums text-foreground">{p.matches}</div>
+        <div className="px-2 py-2.5 text-center">
+          <div className="font-display text-lg tabular-nums text-foreground">{p.matches}</div>
           <div className="text-[9px] uppercase tracking-wider text-muted-foreground mt-0.5">Innings</div>
         </div>
-        <div className="px-3 py-2.5 text-center">
+        {p.wkts !== undefined ? (
+          <div className="px-2 py-2.5 text-center">
+            <div className="font-display text-lg tabular-nums text-accent">{p.wkts}</div>
+            <div className="text-[9px] uppercase tracking-wider text-muted-foreground mt-0.5">Wickets</div>
+          </div>
+        ) : (
+          <div className="px-2 py-2.5 text-center">
+            <div className="text-[10px] font-semibold text-foreground truncate mt-1">{p.role ?? "—"}</div>
+            <div className="text-[9px] uppercase tracking-wider text-muted-foreground mt-0.5">Role</div>
+          </div>
+        )}
+        <div className="px-2 py-2.5 text-center">
           <div className="text-[10px] font-semibold text-foreground truncate mt-1">{p.role ?? "—"}</div>
           <div className="text-[9px] uppercase tracking-wider text-muted-foreground mt-0.5">Role</div>
         </div>
@@ -578,14 +589,14 @@ function BestPlayers() {
     (async () => {
       const { data } = await supabase
         .from("balls")
-        .select("batter_id, bowler_id, batter_name, bowler_name, runs, extra_type, is_wicket, wicket_type, team_members!balls_batter_id_fkey(player_name, team_id, role, batting_style, bowling_style, profiles(avatar_url, city, batting_style, bowling_style, role), teams:team_members_team_id_fkey(name))")
+        .select("batter_id, bowler_id, batter_name, bowler_name, runs, extra_type, is_wicket, wicket_type, innings_id, team_members!balls_batter_id_fkey(player_name, team_id, role, batting_style, bowling_style, profiles(avatar_url, city, batting_style, bowling_style, role), teams:team_members_team_id_fkey(name))")
         .limit(5000);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const map = new Map<string, any>();
 
       const ensure = (id: string, name: string, avatar: string | null, team: string, role: string | null, city: string | null, bat: string | null, bowl: string | null) => {
-        if (!map.has(id)) map.set(id, { name, avatar, runs: 0, wkts: 0, cnt: 0, team, role, city, batting_style: bat, bowling_style: bowl });
+        if (!map.has(id)) map.set(id, { name, avatar, runs: 0, wkts: 0, innings: new Set<string>(), team, role, city, batting_style: bat, bowling_style: bowl });
         return map.get(id);
       };
 
@@ -599,7 +610,7 @@ function BestPlayers() {
             const prof = tm.profiles ?? {};
             const p = ensure(row.batter_id, tm.player_name ?? row.batter_name ?? "—", prof.avatar_url ?? null, tm.teams?.name ?? "—", prof.role ?? tm.role ?? null, prof.city ?? null, prof.batting_style ?? tm.batting_style ?? null, prof.bowling_style ?? tm.bowling_style ?? null);
             p.runs += r;
-            p.cnt++;
+            if (row.innings_id) p.innings.add(row.innings_id);
           }
         }
         if (row.bowler_id && row.is_wicket && row.wicket_type !== "runout" && row.wicket_type !== "retired_hurt") {
@@ -616,7 +627,9 @@ function BestPlayers() {
           sub: `${v.runs}R ${v.wkts}W`,
           role: v.role, city: v.city,
           batting_style: v.batting_style, bowling_style: v.bowling_style,
-          matches: v.cnt,
+          matches: v.innings.size,
+          wkts: v.wkts,
+          runs: v.runs,
         }))
         .filter((p) => p.value > 0)
         .sort((a, b) => b.value - a.value)
@@ -628,7 +641,19 @@ function BestPlayers() {
 
   return (
     <section>
-      <SectionHeader title="Best Players" sub="Top performers by runs + wickets score" icon="⭐" />
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">⭐</span>
+          <div>
+            <h2 className="font-display text-2xl sm:text-3xl tracking-tight">Best Players</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Top performers by runs + wickets score</p>
+          </div>
+        </div>
+        <Link to="/best-players"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-card px-4 py-1.5 text-xs font-semibold text-foreground transition hover:border-primary/40 hover:text-primary">
+          View all →
+        </Link>
+      </div>
       <PlayerSlider players={players} valueLabel="Score" loading={loading} />
     </section>
   );
@@ -682,7 +707,19 @@ function BestStrikers() {
 
   return (
     <section>
-      <SectionHeader title="Best Strikers" sub="Highest strike rate (min. 20 balls faced)" icon="💥" />
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">💥</span>
+          <div>
+            <h2 className="font-display text-2xl sm:text-3xl tracking-tight">Best Strikers</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Highest strike rate (min. 20 balls faced)</p>
+          </div>
+        </div>
+        <Link to="/best-strikers"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-card px-4 py-1.5 text-xs font-semibold text-foreground transition hover:border-primary/40 hover:text-primary">
+          View all →
+        </Link>
+      </div>
       <PlayerSlider players={players} valueLabel="SR" loading={loading} />
     </section>
   );
