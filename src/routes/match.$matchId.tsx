@@ -17,8 +17,7 @@ type Match = {
   id: string; overs: number; venue: string | null;
   status: "scheduled" | "live" | "completed"; current_innings: number;
   result_text: string | null; motm_player_id: string | null;
-  created_at: string | null; started_at: string | null; completed_at: string | null;
-  toss_winner: string | null; toss_decision: string | null;
+  created_at: string | null; completed_at: string | null;
   team_a: Team; team_b: Team;
 };
 type Innings = {
@@ -90,7 +89,7 @@ function PublicScorecard() {
   const load = async () => {
     const { data: m } = await supabase
       .from("matches")
-      .select("id, overs, venue, status, current_innings, result_text, motm_player_id, created_at, started_at, completed_at, toss_winner, toss_decision, team_a:teams!matches_team_a_id_fkey(id, name, short_name, jersey_color), team_b:teams!matches_team_b_id_fkey(id, name, short_name, jersey_color)")
+      .select("id, overs, venue, status, current_innings, result_text, motm_player_id, created_at, completed_at, team_a:teams!matches_team_a_id_fkey(id, name, short_name, jersey_color), team_b:teams!matches_team_b_id_fkey(id, name, short_name, jersey_color)")
       .eq("id", matchId).maybeSingle();
     const mm = m as unknown as Match | null;
     setMatch(mm);
@@ -862,15 +861,11 @@ function InfoTab({ match, innings }: { match: Match; innings: Innings[] }) {
     return new Date(d).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
   };
 
-  const tossWinnerName = match.toss_winner === match.team_a.id ? match.team_a.name
-    : match.toss_winner === match.team_b.id ? match.team_b.name : null;
-
   const rows: { label: string; value: React.ReactNode }[] = [
     { label: "Match", value: `${match.team_a.name} vs ${match.team_b.name}` },
     { label: "Format", value: `T${match.overs}` },
-    { label: "Date", value: fmtDate(match.started_at ?? match.created_at) },
-    { label: "Time", value: fmtTime(match.started_at ?? match.created_at) },
-    ...(tossWinnerName ? [{ label: "Toss", value: `${tossWinnerName} won the toss and opt to ${match.toss_decision === "bat" ? "Bat" : "Bowl"}` }] : []),
+    { label: "Date", value: fmtDate(match.created_at) },
+    { label: "Time", value: fmtTime(match.created_at) },
     { label: "Venue", value: match.venue || "—" },
     { label: "Status", value: match.status === "completed" ? "Completed" : match.status === "live" ? "In Progress" : "Scheduled" },
     ...(match.result_text ? [{ label: "Result", value: match.result_text }] : []),
