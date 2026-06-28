@@ -4,19 +4,21 @@ import { Navbar } from "@/components/layout/Navbar";
 import { supabase } from "@/integrations/supabase/client";
 import { FollowButton } from "@/components/FollowButton";
 import { Radio, Star, Zap, Loader2 } from "lucide-react";
- 
+
 export const Route = createFileRoute("/match/$matchId")({
   ssr: false,
   head: () => ({ meta: [{ title: "Scorecard — JustCric" }] }),
   component: PublicScorecard,
 });
- 
+
 /* ─── Types ─── */
 type Team = { id: string; name: string; short_name: string | null; jersey_color: string | null };
 type Match = {
   id: string; overs: number; venue: string | null;
   status: "scheduled" | "live" | "completed"; current_innings: number;
   result_text: string | null; motm_player_id: string | null;
+  created_at: string | null; started_at: string | null; completed_at: string | null;
+  toss_winner: string | null; toss_decision: string | null;
   team_a: Team; team_b: Team;
 };
 type Innings = {
@@ -28,20 +30,21 @@ type Ball = {
   id: string; innings_id: string; ball_index: number; over_number: number; ball_in_over: number;
   runs: number; extra_type: "wide" | "noball" | "bye" | "legbye" | null;
   is_wicket: boolean; wicket_type: string | null;
-  batter_id: string | null; bowler_id: string | null; dismissed_player_id: string | null;
+  batter_id: string | null; non_striker_id: string | null; bowler_id: string | null; dismissed_player_id: string | null;
 };
 type Member = { id: string; player_name: string; team_id: string; jersey_number: number | null };
 type MotmProfile = { id: string; full_name: string | null; avatar_url: string | null };
-type Tab = "live" | "scorecard" | "commentary" | "summary" | "squads";
- 
+type Tab = "info" | "live" | "scorecard" | "commentary" | "summary" | "squads";
+
 const TABS: { id: Tab; label: string }[] = [
+  { id: "info", label: "Info" },
   { id: "live", label: "Live" },
   { id: "scorecard", label: "Scorecard" },
   { id: "commentary", label: "Commentary" },
   { id: "summary", label: "Summary" },
   { id: "squads", label: "Squads" },
 ];
- 
+
 /* ─── Cricbuzz colour tokens ─── */
 const CB = {
   green: "#1a472a",       // header bg
@@ -53,7 +56,7 @@ const CB = {
   border: "hsl(var(--border))",
   muted: "hsl(var(--muted-foreground))",
 };
- 
+
 /* ═══════════════════════════════════════════
    PUBLIC SCORECARD
 ═══════════════════════════════════════════ */
@@ -70,7 +73,7 @@ function PublicScorecard() {
   const [myMemberId, setMyMemberId] = useState<string | null>(null);
   const [myInsight, setMyInsight] = useState<string | null>(null);
   const [loadingInsight, setLoadingInsight] = useState(false);
- 
+
   // Load logged-in user's member id for this match
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
@@ -83,29 +86,29 @@ function PublicScorecard() {
       if (mems?.length) setMyMemberId((mems as { id: string }[])[0].id);
     });
   }, []);
- 
+
   const load = async () => {
     const { data: m } = await supabase
       .from("matches")
-      .select("id, overs, venue, status, current_innings, result_text, motm_player_id, team_a:teams!matches_team_a_id_fkey(id, name, short_name, jersey_color), team_b:teams!matches_team_b_id_fkey(id, name, short_name, jersey_color)")
+      .select("id, overs, venue, status, current_innings, result_text, motm_player_id, created_at, started_at, completed_at, toss_winner, toss_decision, team_a:teams!matches_team_a_id_fkey(id, name, short_name, jersey_color), team_b:teams!matches_team_b_id_fkey(id, name, short_name, jersey_color)")
       .eq("id", matchId).maybeSingle();
     const mm = m as unknown as Match | null;
     setMatch(mm);
     if (!mm) return;
- 
+
     const { data: inn } = await supabase.from("innings")
       .select("id, innings_no, batting_team_id, bowling_team_id, runs, wickets, balls, extras, target, striker_id, non_striker_id, bowler_id")
       .eq("match_id", matchId).order("innings_no");
     const innList = (inn as Innings[]) ?? [];
     setInnings(innList);
- 
+
     if (innList.length) {
       const { data: bs } = await supabase.from("balls")
-        .select("id, innings_id, ball_index, over_number, ball_in_over, runs, extra_type, is_wicket, wicket_type, batter_id, bowler_id, dismissed_player_id")
+        .select("id, innings_id, ball_index, over_number, ball_in_over, runs, extra_type, is_wicket, wicket_type, batter_id, non_striker_id, bowler_id, dismissed_player_id")
         .in("innings_id", innList.map((i) => i.id)).order("ball_index");
       setBalls((bs as Ball[]) ?? []);
     }
- 
+
     const { data: ms } = await supabase.from("team_members")
       .select("id, player_name, team_id, jersey_number")
       .in("team_id", [mm.team_a.id, mm.team_b.id]);
@@ -114,7 +117,7 @@ function PublicScorecard() {
     memList.forEach((p) => (map[p.id] = p));
     setPlayers(map);
     setSquad({ a: memList.filter((p) => p.team_id === mm.team_a.id), b: memList.filter((p) => p.team_id === mm.team_b.id) });
- 
+
     if (mm.motm_player_id) {
       const motmMem = memList.find((p) => p.id === mm.motm_player_id) ?? null;
       setMotmMember(motmMem);
@@ -126,7 +129,7 @@ function PublicScorecard() {
       }
     }
   };
- 
+
   useEffect(() => {
     load();
     const ch = supabase.channel(`match-pub-${matchId}`)
@@ -137,22 +140,22 @@ function PublicScorecard() {
     return () => { supabase.removeChannel(ch); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchId]);
- 
+
   const currentInn = useMemo(
     () => innings.find((i) => i.innings_no === match?.current_innings) ?? innings[innings.length - 1],
     [innings, match?.current_innings],
   );
- 
+
   if (!match) return (
     <div className="min-h-screen bg-background"><Navbar />
       <div className="mx-auto max-w-3xl px-4 py-10"><div className="h-40 animate-pulse rounded-xl border border-border bg-card" /></div>
     </div>
   );
- 
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
- 
+
       {/* ── Cricbuzz-style match header (dark green) ── */}
       <div style={{ background: CB.green }}>
         <div className="mx-auto max-w-4xl px-4 pt-4 pb-0 sm:px-6">
@@ -165,7 +168,7 @@ function PublicScorecard() {
               </span>
             )}
           </div>
- 
+
           {/* Team scores */}
           {[match.team_a, match.team_b].map((team, ti) => {
             const inn = innings.find((i) => i.batting_team_id === team.id);
@@ -194,7 +197,7 @@ function PublicScorecard() {
               </div>
             );
           })}
- 
+
           {/* Result / chase info */}
           {match.status === "completed" && match.result_text && (
             <div className="border-t border-white/10 py-2.5 text-sm font-semibold text-green-300">{match.result_text}</div>
@@ -211,7 +214,7 @@ function PublicScorecard() {
               </b>
             </div>
           )}
- 
+
           {/* ── Cricbuzz tabs — white text, orange underline ── */}
           <div className="flex gap-0 overflow-x-auto mt-1 -mx-4 px-4 sm:-mx-6 sm:px-6">
             {TABS.map((t) => (
@@ -227,9 +230,10 @@ function PublicScorecard() {
           </div>
         </div>
       </div>
- 
+
       {/* ── Tab content ── */}
       <main className="mx-auto max-w-4xl px-4 py-4 sm:px-6">
+        {tab === "info" && <InfoTab match={match} innings={innings} />}
         {tab === "live" && <LiveTab match={match} innings={innings} currentInn={currentInn} balls={balls} players={players} />}
         {tab === "scorecard" && <ScorecardTab match={match} innings={innings} balls={balls} players={players} />}
         {tab === "commentary" && <CommentaryTab innings={innings} balls={balls} players={players} match={match} />}
@@ -239,20 +243,20 @@ function PublicScorecard() {
     </div>
   );
 }
- 
+
 /* ─── Live tab ─── */
 function LiveTab({ match, currentInn, balls, players }: {
   match: Match; innings: Innings[]; currentInn: Innings | undefined; balls: Ball[]; players: Record<string, Member>;
 }) {
   if (!currentInn) return <EmptyState msg="Match hasn't started yet." />;
- 
+
   const innBalls = balls.filter((b) => b.innings_id === currentInn.id);
   const currentOverNo = Math.floor(currentInn.balls / 6);
   const thisOverBalls = innBalls.filter((b) => b.over_number === currentOverNo);
   const runRate = currentInn.balls > 0 ? ((currentInn.runs / currentInn.balls) * 6).toFixed(2) : "—";
   const reqRR = currentInn.target && (match.overs * 6 - currentInn.balls) > 0
     ? (((currentInn.target - currentInn.runs) / (match.overs * 6 - currentInn.balls)) * 6).toFixed(2) : null;
- 
+
   return (
     <div className="space-y-3">
       {/* At the crease — Cricbuzz green header card */}
@@ -264,7 +268,7 @@ function LiveTab({ match, currentInn, balls, players }: {
           <CbPlayerCell label="Bowler" name={currentInn.bowler_id ? players[currentInn.bowler_id]?.player_name : null} />
         </div>
       </CbCard>
- 
+
       {/* Stats */}
       <div className="grid grid-cols-3 gap-2">
         {[
@@ -278,7 +282,7 @@ function LiveTab({ match, currentInn, balls, players }: {
           </div>
         ))}
       </div>
- 
+
       {/* This over */}
       {thisOverBalls.length > 0 && (
         <CbCard>
@@ -294,11 +298,13 @@ function LiveTab({ match, currentInn, balls, players }: {
     </div>
   );
 }
- 
+
 /* ─── Scorecard tab — Cricbuzz green header tables ─── */
 type BatLine = { id: string; name: string; runs: number; balls: number; fours: number; sixes: number; out: boolean; outDesc: string };
+type FowEntry = { wicket: number; score: number; over: string; batsmanName: string };
+type Partnership = { bat1: string; bat2: string; runs: number; balls: number };
 type BowlLine = { id: string; name: string; legal: number; runs: number; wkts: number; maidens: number };
- 
+
 function buildInningsTables(innBalls: Ball[], players: Record<string, Member>) {
   const batMap = new Map<string, BatLine>();
   const order: string[] = [];
@@ -309,7 +315,32 @@ function buildInningsTables(innBalls: Ball[], players: Record<string, Member>) {
     }
     return batMap.get(id)!;
   };
+
+  // Track running score for FOW
+  let runningRuns = 0;
+  let runningLegalBalls = 0;
+  const fow: FowEntry[] = [];
+  const partnerships: Partnership[] = [];
+  let partnershipStart = 0;
+  let partnershipBalls = 0;
+  let currentStriker: string | null = null;
+  let currentNonStriker: string | null = null;
+
   innBalls.forEach((b) => {
+    // Track batters in order
+    if (b.batter_id && !order.includes(b.batter_id)) {
+      ensureBat(b.batter_id);
+    }
+    if (b.non_striker_id && !order.includes(b.non_striker_id)) {
+      ensureBat(b.non_striker_id);
+    }
+
+    // Running score
+    const isLegal = b.extra_type !== "wide" && b.extra_type !== "noball";
+    if (isLegal) { runningLegalBalls++; partnershipBalls++; }
+    runningRuns += b.runs;
+    if (b.extra_type === "wide" || b.extra_type === "noball") runningRuns += 1;
+
     if (b.batter_id) {
       const row = ensureBat(b.batter_id);
       if (b.extra_type !== "wide") row.balls++;
@@ -325,15 +356,41 @@ function buildInningsTables(innBalls: Ball[], players: Record<string, Member>) {
       const row = ensureBat(b.dismissed_player_id);
       row.out = true;
       const bowlerName = b.bowler_id ? players[b.bowler_id]?.player_name : null;
-      row.outDesc = b.wicket_type === "runout" ? "run out" : b.wicket_type ? `${b.wicket_type}${bowlerName ? " b " + bowlerName : ""}` : bowlerName ? `b ${bowlerName}` : "out";
+      const wt = b.wicket_type ?? "";
+      if (wt === "runout") row.outDesc = "run out";
+      else if (wt === "caught" || wt === "caught_behind") row.outDesc = bowlerName ? `c & b ${bowlerName}` : "caught";
+      else if (wt === "bowled") row.outDesc = bowlerName ? `b ${bowlerName}` : "bowled";
+      else if (wt === "lbw") row.outDesc = bowlerName ? `lbw b ${bowlerName}` : "lbw";
+      else if (wt === "stumped") row.outDesc = bowlerName ? `st b ${bowlerName}` : "stumped";
+      else if (wt === "hit_wicket") row.outDesc = bowlerName ? `hit wicket b ${bowlerName}` : "hit wicket";
+      else if (wt === "retired_hurt") row.outDesc = "retired hurt";
+      else row.outDesc = bowlerName ? `b ${bowlerName}` : "out";
+
+      // FOW
+      const overStr = `${Math.floor(runningLegalBalls / 6)}.${runningLegalBalls % 6}`;
+      fow.push({ wicket: fow.length + 1, score: runningRuns, over: overStr, batsmanName: row.name });
+
+      // Partnership
+      const partRuns = runningRuns - partnershipStart;
+      if (currentStriker && currentNonStriker) {
+        partnerships.push({ bat1: players[currentStriker]?.player_name ?? "—", bat2: players[currentNonStriker]?.player_name ?? "—", runs: partRuns, balls: partnershipBalls });
+      }
+      partnershipStart = runningRuns;
+      partnershipBalls = 0;
     }
+
+    // Update current batters
+    if (b.batter_id) currentStriker = b.batter_id;
+    if (b.non_striker_id) currentNonStriker = b.non_striker_id;
   });
+
   const bowlMap = new Map<string, BowlLine>();
   const perOver = new Map<string, Map<number, { runs: number; legal: number }>>();
   innBalls.forEach((b) => {
     if (!b.bowler_id) return;
     const row = bowlMap.get(b.bowler_id) ?? { id: b.bowler_id, name: players[b.bowler_id]?.player_name ?? "—", legal: 0, runs: 0, wkts: 0, maidens: 0 };
     row.runs += b.runs;
+    if (b.extra_type === "wide" || b.extra_type === "noball") row.runs += 1;
     if (b.extra_type !== "wide" && b.extra_type !== "noball") row.legal++;
     if (b.is_wicket && b.wicket_type !== "runout" && b.wicket_type !== "retired_hurt") row.wkts++;
     bowlMap.set(b.bowler_id, row);
@@ -350,64 +407,64 @@ function buildInningsTables(innBalls: Ball[], players: Record<string, Member>) {
     const row = bowlMap.get(bid);
     if (row) row.maidens = maidens;
   });
-  return { batting: order.map((id) => batMap.get(id)!), bowling: [...bowlMap.values()] };
+  return { batting: order.map((id) => batMap.get(id)!), bowling: [...bowlMap.values()], fow, partnerships };
 }
- 
+
 function ScorecardTab({ match, innings, balls, players }: { match: Match; innings: Innings[]; balls: Ball[]; players: Record<string, Member> }) {
   if (!innings.length) return <EmptyState msg="Scorecard appears once the match starts." />;
   return (
     <div className="space-y-5">
       {innings.map((inn) => {
         const battingTeam = inn.batting_team_id === match.team_a.id ? match.team_a : match.team_b;
+        const bowlingTeam = inn.bowling_team_id === match.team_a.id ? match.team_a : match.team_b;
         const innBalls = balls.filter((b) => b.innings_id === inn.id);
-        const { batting, bowling } = buildInningsTables(innBalls, players);
+        const { batting, bowling, fow, partnerships } = buildInningsTables(innBalls, players);
         const overs = `${Math.floor(inn.balls / 6)}.${inn.balls % 6}`;
         const headerColor = battingTeam.jersey_color || CB.green;
+        const rr = inn.balls > 0 ? ((inn.runs / inn.balls) * 6).toFixed(2) : "0.00";
         return (
-          <div key={inn.id} className="overflow-hidden rounded-xl border border-border">
-            {/* Innings header — team jersey color (Cricbuzz style) */}
+          <div key={inn.id} className="overflow-hidden rounded-xl border border-border bg-card">
+            {/* Innings header */}
             <div className="flex items-center justify-between px-4 py-3" style={{ background: headerColor }}>
               <div>
-                <div className="font-display text-base text-white">{battingTeam.name}</div>
+                <div className="font-display text-lg font-bold text-white">{battingTeam.name}</div>
                 <div className="text-[10px] text-white/60 uppercase tracking-widest">Innings {inn.innings_no}</div>
               </div>
               <div className="text-right">
-                <div className="font-display text-2xl tabular-nums text-white">{inn.runs}<span className="text-white/50 text-lg">/{inn.wickets}</span></div>
-                <div className="text-[10px] text-white/60 font-mono">{overs} Ov</div>
+                <div className="font-display text-3xl tabular-nums text-white font-bold">{inn.runs}<span className="text-white/60 text-xl">-{inn.wickets}</span></div>
+                <div className="text-[10px] text-white/60 font-mono">{overs} Ov (RR: {rr})</div>
               </div>
             </div>
- 
+
             {/* Batting table */}
             <div className="overflow-x-auto">
               <table className="w-full text-sm border-collapse">
                 <thead>
-                  <tr style={{ background: CB.green }}>
-                    <th className="py-2 pl-4 pr-2 text-left text-[10px] font-bold uppercase tracking-wider text-white/80">Batter</th>
-                    <th className="py-2 px-2 text-center text-[10px] font-bold uppercase tracking-wider text-white/80 w-10">R</th>
-                    <th className="py-2 px-2 text-center text-[10px] font-bold uppercase tracking-wider text-white/80 w-10">B</th>
-                    <th className="py-2 px-2 text-center text-[10px] font-bold uppercase tracking-wider text-white/80 w-10">4s</th>
-                    <th className="py-2 px-2 text-center text-[10px] font-bold uppercase tracking-wider text-white/80 w-10">6s</th>
-                    <th className="py-2 pl-2 pr-4 text-right text-[10px] font-bold uppercase tracking-wider text-white/80 w-14">SR</th>
+                  <tr className="bg-muted/40 border-b border-border">
+                    <th className="py-2 pl-4 pr-2 text-left text-[11px] font-bold text-muted-foreground">BATTER</th>
+                    <th className="py-2 px-2 text-center text-[11px] font-bold text-muted-foreground w-10">R</th>
+                    <th className="py-2 px-2 text-center text-[11px] font-bold text-muted-foreground w-10">B</th>
+                    <th className="py-2 px-2 text-center text-[11px] font-bold text-muted-foreground w-10">4s</th>
+                    <th className="py-2 px-2 text-center text-[11px] font-bold text-muted-foreground w-10">6s</th>
+                    <th className="py-2 pl-2 pr-4 text-right text-[11px] font-bold text-muted-foreground w-14">SR</th>
                   </tr>
                 </thead>
                 <tbody>
                   {batting.length === 0 ? (
                     <tr><td colSpan={6} className="py-5 text-center text-xs text-muted-foreground">No batting yet</td></tr>
                   ) : batting.map((r, i) => (
-                    <tr key={r.id} className={i % 2 === 1 ? "bg-muted/30" : "bg-card"}>
-                      <td className="py-2.5 pl-4 pr-2 border-b border-border/40">
-                        <div className={`font-semibold text-sm ${!r.out ? "" : "text-foreground"}`}
-                          style={!r.out ? { color: CB.orangeText } : {}}>
-                          {r.name}
-                          {!r.out && <span className="ml-1 text-[10px]">●</span>}
+                    <tr key={r.id} className={`border-b border-border/30 ${i % 2 === 0 ? "bg-card" : "bg-muted/20"}`}>
+                      <td className="py-3 pl-4 pr-2">
+                        <div className="font-semibold text-sm" style={!r.out ? { color: CB.orangeText } : {}}>
+                          {r.name}{!r.out && <span className="ml-1.5 text-[9px] font-bold text-primary">●</span>}
                         </div>
-                        <div className="text-[10px] text-muted-foreground mt-0.5">{r.out ? r.outDesc : "not out"}</div>
+                        <div className="text-[11px] text-muted-foreground mt-0.5">{r.out ? r.outDesc : "not out"}</div>
                       </td>
-                      <td className="py-2.5 px-2 text-center font-bold text-base border-b border-border/40">{r.runs}</td>
-                      <td className="py-2.5 px-2 text-center font-mono text-xs text-muted-foreground border-b border-border/40">{r.balls}</td>
-                      <td className="py-2.5 px-2 text-center font-mono text-xs border-b border-border/40">{r.fours}</td>
-                      <td className="py-2.5 px-2 text-center font-mono text-xs font-semibold border-b border-border/40" style={{ color: CB.orangeText }}>{r.sixes}</td>
-                      <td className="py-2.5 pl-2 pr-4 text-right font-mono text-xs border-b border-border/40">
+                      <td className="py-3 px-2 text-center font-bold text-base">{r.runs}</td>
+                      <td className="py-3 px-2 text-center font-mono text-xs text-muted-foreground">{r.balls}</td>
+                      <td className="py-3 px-2 text-center font-mono text-xs">{r.fours}</td>
+                      <td className="py-3 px-2 text-center font-mono text-xs font-bold" style={{ color: CB.orangeText }}>{r.sixes}</td>
+                      <td className="py-3 pl-2 pr-4 text-right font-mono text-xs text-muted-foreground">
                         {r.balls > 0 ? ((r.runs / r.balls) * 100).toFixed(1) : "—"}
                       </td>
                     </tr>
@@ -415,38 +472,51 @@ function ScorecardTab({ match, innings, balls, players }: { match: Match; inning
                 </tbody>
               </table>
             </div>
- 
+
             {/* Extras + total */}
-            <div className="border-b border-border bg-muted/20 px-4 py-2 text-xs text-muted-foreground">
-              Extras <b className="text-foreground">{inn.extras}</b>
-              <span className="mx-2">·</span>
-              Total <b className="text-foreground">{inn.runs}/{inn.wickets} ({overs} Ov)</b>
+            <div className="border-t border-b border-border bg-muted/30 px-4 py-2 flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">Extras <b className="text-foreground">{inn.extras}</b></span>
+              <span className="text-muted-foreground">Total <b className="text-foreground">{inn.runs}-{inn.wickets} ({overs} Ov, RR: {rr})</b></span>
             </div>
- 
+
+            {/* Yet to bat */}
+            {(() => {
+              const battedIds = new Set(batting.map(b => b.id));
+              const allSquad = Object.values(players).filter(p => p.team_id === battingTeam.id);
+              const yetToBat = allSquad.filter(p => !battedIds.has(p.id));
+              if (!yetToBat.length) return null;
+              return (
+                <div className="border-b border-border px-4 py-2 text-xs text-muted-foreground">
+                  <span className="font-semibold text-foreground">Yet to bat: </span>
+                  {yetToBat.map(p => p.player_name).join(", ")}
+                </div>
+              );
+            })()}
+
             {/* Bowling table */}
             <div className="overflow-x-auto">
               <table className="w-full text-sm border-collapse">
                 <thead>
-                  <tr style={{ background: CB.green }}>
-                    <th className="py-2 pl-4 pr-2 text-left text-[10px] font-bold uppercase tracking-wider text-white/80">Bowler</th>
-                    <th className="py-2 px-2 text-center text-[10px] font-bold uppercase tracking-wider text-white/80 w-10">O</th>
-                    <th className="py-2 px-2 text-center text-[10px] font-bold uppercase tracking-wider text-white/80 w-10">M</th>
-                    <th className="py-2 px-2 text-center text-[10px] font-bold uppercase tracking-wider text-white/80 w-10">R</th>
-                    <th className="py-2 px-2 text-center text-[10px] font-bold uppercase tracking-wider text-white/80 w-10">W</th>
-                    <th className="py-2 pl-2 pr-4 text-right text-[10px] font-bold uppercase tracking-wider text-white/80 w-14">Econ</th>
+                  <tr className="bg-muted/40 border-b border-border">
+                    <th className="py-2 pl-4 pr-2 text-left text-[11px] font-bold text-muted-foreground">BOWLER</th>
+                    <th className="py-2 px-2 text-center text-[11px] font-bold text-muted-foreground w-10">O</th>
+                    <th className="py-2 px-2 text-center text-[11px] font-bold text-muted-foreground w-10">M</th>
+                    <th className="py-2 px-2 text-center text-[11px] font-bold text-muted-foreground w-10">R</th>
+                    <th className="py-2 px-2 text-center text-[11px] font-bold text-muted-foreground w-10">W</th>
+                    <th className="py-2 pl-2 pr-4 text-right text-[11px] font-bold text-muted-foreground w-14">ECO</th>
                   </tr>
                 </thead>
                 <tbody>
                   {bowling.length === 0 ? (
                     <tr><td colSpan={6} className="py-5 text-center text-xs text-muted-foreground">No bowling yet</td></tr>
                   ) : bowling.map((r, i) => (
-                    <tr key={r.id} className={i % 2 === 1 ? "bg-muted/30" : "bg-card"}>
-                      <td className="py-2.5 pl-4 pr-2 font-semibold text-sm border-b border-border/40">{r.name}</td>
-                      <td className="py-2.5 px-2 text-center font-mono text-xs border-b border-border/40">{Math.floor(r.legal / 6)}.{r.legal % 6}</td>
-                      <td className="py-2.5 px-2 text-center font-mono text-xs border-b border-border/40">{r.maidens}</td>
-                      <td className="py-2.5 px-2 text-center font-mono text-xs border-b border-border/40">{r.runs}</td>
-                      <td className="py-2.5 px-2 text-center font-bold text-base border-b border-border/40" style={{ color: CB.orangeText }}>{r.wkts}</td>
-                      <td className="py-2.5 pl-2 pr-4 text-right font-mono text-xs border-b border-border/40">
+                    <tr key={r.id} className={`border-b border-border/30 ${i % 2 === 0 ? "bg-card" : "bg-muted/20"}`}>
+                      <td className="py-3 pl-4 pr-2 font-semibold text-sm">{r.name}</td>
+                      <td className="py-3 px-2 text-center font-mono text-xs">{Math.floor(r.legal / 6)}.{r.legal % 6}</td>
+                      <td className="py-3 px-2 text-center font-mono text-xs text-muted-foreground">{r.maidens}</td>
+                      <td className="py-3 px-2 text-center font-mono text-xs">{r.runs}</td>
+                      <td className="py-3 px-2 text-center font-bold text-base" style={{ color: CB.orangeText }}>{r.wkts}</td>
+                      <td className="py-3 pl-2 pr-4 text-right font-mono text-xs text-muted-foreground">
                         {r.legal > 0 ? ((r.runs / r.legal) * 6).toFixed(2) : "—"}
                       </td>
                     </tr>
@@ -454,13 +524,50 @@ function ScorecardTab({ match, innings, balls, players }: { match: Match; inning
                 </tbody>
               </table>
             </div>
+
+            {/* Fall of Wickets */}
+            {fow.length > 0 && (
+              <div className="border-t border-border px-4 py-3">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Fall of Wickets</div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1">
+                  {fow.map((f) => (
+                    <span key={f.wicket} className="text-xs text-foreground">
+                      <span className="font-semibold">{f.score}-{f.wicket}</span>
+                      <span className="text-muted-foreground ml-1">({f.batsmanName}, {f.over} Ov)</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Partnerships */}
+            {partnerships.length > 0 && (
+              <div className="border-t border-border px-4 py-3">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Partnerships</div>
+                <div className="space-y-1.5">
+                  {partnerships.map((p, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs">
+                      <span className="font-semibold text-foreground w-16 shrink-0 tabular-nums">
+                        {p.runs}({p.balls})
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="h-2 rounded-full bg-muted overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${Math.min(100, p.runs)}%`, background: CB.orange }} />
+                        </div>
+                      </div>
+                      <span className="text-muted-foreground shrink-0 text-[11px]">{p.bat1} & {p.bat2}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         );
       })}
     </div>
   );
 }
- 
+
 /* ─── Commentary ─── */
 function commentaryLine(b: Ball, players: Record<string, Member>) {
   const batter = b.batter_id ? players[b.batter_id]?.player_name ?? "batter" : "batter";
@@ -478,7 +585,7 @@ function commentaryLine(b: Ball, players: Record<string, Member>) {
   if (b.runs === 0) return `${bowler} to ${batter}, dot ball.`;
   return `${bowler} to ${batter}, ${b.runs} run${b.runs === 1 ? "" : "s"}.`;
 }
- 
+
 function CommentaryTab({ innings, balls, players, match }: { innings: Innings[]; balls: Ball[]; players: Record<string, Member>; match: Match }) {
   if (!balls.length) return <EmptyState msg="Commentary appears ball-by-ball." />;
   return (
@@ -508,7 +615,7 @@ function CommentaryTab({ innings, balls, players, match }: { innings: Innings[];
     </div>
   );
 }
- 
+
 /* ─── Summary + MOTM ─── */
 function SummaryTab({ match, innings, balls, players, motmMember, motmProfile, myMemberId, myInsight, loadingInsight, setMyInsight, setLoadingInsight, matchId }: {
   match: Match; innings: Innings[]; balls: Ball[]; players: Record<string, Member>;
@@ -543,26 +650,26 @@ function SummaryTab({ match, innings, balls, players, motmMember, motmProfile, m
     });
     return { bRuns, bBalls, bFours, bSixes, batOut, bowlLegal, bowlRuns, bowlWkts, catches, runouts };
   })();
- 
+
   const generateInsight = async () => {
     if (!myContrib || loadingInsight || myInsight) return;
     setLoadingInsight(true);
     const c = myContrib;
     const prompt = `You are an enthusiastic cricket coach giving personal post-match feedback. Write a SHORT (2-3 sentences, max 70 words), MOTIVATING and SPECIFIC message for this player based on their match contribution.
- 
+
 Their stats:
 ${c.bBalls > 0 ? `Batting: ${c.bRuns} runs off ${c.bBalls} balls (${c.bFours} fours, ${c.bSixes} sixes). ${c.batOut ? "Got out." : "Remained not out."}` : "Did not bat."}
 ${c.bowlLegal > 0 ? `Bowling: ${Math.floor(c.bowlLegal/6)}.${c.bowlLegal%6} overs, ${c.bowlRuns} runs, ${c.bowlWkts} wickets.` : "Did not bowl."}
 ${c.catches + c.runouts > 0 ? `Fielding: ${c.catches} catch(es), ${c.runouts} run out(s).` : ""}
 Match result: ${match.result_text ?? "Unknown"}
- 
+
 Rules:
 - Write in second person (You...)
 - Be specific about their numbers, not generic
 - Find something genuinely positive even in modest stats
 - End with one forward-looking motivational line
 - Never use clichés like "great effort" alone`;
- 
+
     try {
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -592,7 +699,7 @@ Rules:
   });
   const topBatters = [...batRunsByPlayer.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([id, runs]) => ({ id, name: players[id]?.player_name ?? "—", runs }));
   const topBowlers = [...wktsByPlayer.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([id, wkts]) => ({ id, name: players[id]?.player_name ?? "—", wkts }));
- 
+
   return (
     <div className="space-y-4">
       {/* Personal motivational insight — only shown to logged-in player */}
@@ -609,7 +716,7 @@ Rules:
               </button>
             )}
           </div>
- 
+
           {/* Quick stat chips */}
           <div className="flex flex-wrap gap-2 mb-3">
             {myContrib.bBalls > 0 && (
@@ -635,7 +742,7 @@ Rules:
               </span>
             )}
           </div>
- 
+
           {/* AI insight */}
           {loadingInsight && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
@@ -653,7 +760,7 @@ Rules:
           )}
         </div>
       )}
- 
+
       {/* Result */}
       {match.status === "completed" && match.result_text && (
         <div className="rounded-xl border border-border overflow-hidden">
@@ -661,7 +768,7 @@ Rules:
           <div className="px-4 py-3 font-display text-lg" style={{ color: CB.orangeText }}>{match.result_text}</div>
         </div>
       )}
- 
+
       {/* MOTM */}
       {motmMember && (
         <div className="rounded-xl border border-border overflow-hidden">
@@ -686,7 +793,7 @@ Rules:
           </div>
         </div>
       )}
- 
+
       <div className="grid gap-4 md:grid-cols-2">
         {/* Top scorers */}
         <div className="rounded-xl border border-border overflow-hidden">
@@ -716,7 +823,7 @@ Rules:
     </div>
   );
 }
- 
+
 /* ─── Squads ─── */
 function SquadsTab({ match, squad }: { match: Match; squad: { a: Member[]; b: Member[] } }) {
   return (
@@ -743,7 +850,93 @@ function SquadsTab({ match, squad }: { match: Match; squad: { a: Member[]; b: Me
     </div>
   );
 }
- 
+
+
+/* ─── Info Tab ─── */
+function InfoTab({ match, innings }: { match: Match; innings: Innings[] }) {
+  const fmtDate = (d: string | null) => {
+    if (!d) return "—";
+    return new Date(d).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  };
+  const fmtTime = (d: string | null) => {
+    if (!d) return "—";
+    return new Date(d).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+  };
+
+  const tossWinnerName = match.toss_winner === match.team_a.id ? match.team_a.name
+    : match.toss_winner === match.team_b.id ? match.team_b.name : null;
+
+  const rows: { label: string; value: React.ReactNode }[] = [
+    { label: "Match", value: `${match.team_a.name} vs ${match.team_b.name}` },
+    { label: "Format", value: `T${match.overs}` },
+    { label: "Date", value: fmtDate(match.started_at ?? match.created_at) },
+    { label: "Time", value: fmtTime(match.started_at ?? match.created_at) },
+    ...(tossWinnerName ? [{ label: "Toss", value: `${tossWinnerName} won the toss and opt to ${match.toss_decision === "bat" ? "Bat" : "Bowl"}` }] : []),
+    { label: "Venue", value: match.venue || "—" },
+    { label: "Status", value: match.status === "completed" ? "Completed" : match.status === "live" ? "In Progress" : "Scheduled" },
+    ...(match.result_text ? [{ label: "Result", value: match.result_text }] : []),
+    ...(match.completed_at ? [{ label: "Completed", value: fmtDate(match.completed_at) }] : []),
+  ];
+
+  return (
+    <div className="space-y-4">
+      {/* Match Info card */}
+      <div className="overflow-hidden rounded-xl border border-border bg-card">
+        <div className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest text-white" style={{ background: CB.green }}>
+          Match Info
+        </div>
+        <div className="divide-y divide-border">
+          {rows.map((r) => (
+            <div key={r.label} className="flex items-start gap-4 px-4 py-3">
+              <span className="w-28 shrink-0 text-xs font-semibold text-muted-foreground">{r.label}</span>
+              <span className="flex-1 text-sm text-foreground">{r.value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Innings summary */}
+      {innings.length > 0 && (
+        <div className="overflow-hidden rounded-xl border border-border bg-card">
+          <div className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest text-white" style={{ background: CB.green }}>
+            Innings Summary
+          </div>
+          <div className="divide-y divide-border">
+            {innings.map((inn) => {
+              const team = inn.batting_team_id === match.team_a.id ? match.team_a : match.team_b;
+              const overs = `${Math.floor(inn.balls / 6)}.${inn.balls % 6}`;
+              const rr = inn.balls > 0 ? ((inn.runs / inn.balls) * 6).toFixed(2) : "0.00";
+              return (
+                <div key={inn.id} className="px-4 py-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="grid h-7 w-7 place-items-center rounded-md font-display text-[10px] font-bold text-white"
+                        style={{ backgroundColor: team.jersey_color || CB.green }}>
+                        {(team.short_name || team.name).slice(0, 3).toUpperCase()}
+                      </span>
+                      <span className="font-semibold text-sm">{team.name}</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-display text-xl tabular-nums">{inn.runs}-{inn.wickets}</div>
+                      <div className="text-[10px] text-muted-foreground">{overs} Ov · RR {rr}</div>
+                    </div>
+                  </div>
+                  {inn.target && (
+                    <div className="mt-1.5 text-xs text-primary">Target: {inn.target}</div>
+                  )}
+                  <div className="mt-1.5 text-xs text-muted-foreground">
+                    Extras: {inn.extras}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ─── Shared UI primitives ─── */
 function CbCard({ children }: { children: React.ReactNode }) {
   return <div className="overflow-hidden rounded-xl border border-border bg-card">{children}</div>;
