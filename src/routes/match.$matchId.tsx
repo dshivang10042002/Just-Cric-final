@@ -47,15 +47,35 @@ const TABS: { id: Tab; label: string }[] = [
 
 /* ─── Cricbuzz colour tokens ─── */
 const CB = {
-  green: "#1a472a",       // header bg
-  greenLight: "#2d6a4f",  // sub-row bg
-  orange: "#f58220",      // active tab underline / highlights
+  green: "#1a472a",
+  greenLight: "#2d6a4f",
+  orange: "#f58220",
   orangeText: "#e07b1a",
   headerText: "#ffffff",
-  rowAlt: "#f9fafb",      // light alt row (light mode)
+  rowAlt: "#f9fafb",
   border: "hsl(var(--border))",
   muted: "hsl(var(--muted-foreground))",
 };
+
+/**
+ * Returns a safe header background colour.
+ * Treats null / empty / white / near-white values as "bad" and falls back to CB.green
+ * so that white text on the innings header is always legible.
+ */
+function safeHeaderColor(jerseyColor: string | null | undefined): string {
+  if (!jerseyColor) return CB.green;
+  const v = jerseyColor.trim().toLowerCase();
+  if (v === "" || v === "#fff" || v === "#ffffff" || v === "white" || v === "rgb(255,255,255)") return CB.green;
+  // Reject very-light hex colours (#fXX, #fXXXXX where all channels > 0xcc)
+  const hex6 = v.startsWith("#") && v.length === 7 ? v : null;
+  if (hex6) {
+    const r = parseInt(hex6.slice(1, 3), 16);
+    const g = parseInt(hex6.slice(3, 5), 16);
+    const b = parseInt(hex6.slice(5, 7), 16);
+    if (r > 200 && g > 200 && b > 200) return CB.green;
+  }
+  return jerseyColor;
+}
 
 /* ═══════════════════════════════════════════
    PUBLIC SCORECARD
@@ -102,11 +122,14 @@ function PublicScorecard() {
     const innList = (inn as Innings[]) ?? [];
     setInnings(innList);
 
+    // Always attempt to load balls even if innList is empty — defensive reset
     if (innList.length) {
       const { data: bs } = await supabase.from("balls")
         .select("id, innings_id, ball_index, over_number, ball_in_over, runs, extra_type, is_wicket, wicket_type, batter_id, non_striker_id, bowler_id, dismissed_player_id")
         .in("innings_id", innList.map((i) => i.id)).order("ball_index");
       setBalls((bs as Ball[]) ?? []);
+    } else {
+      setBalls([]);
     }
 
     const { data: ms } = await supabase.from("team_members")
@@ -204,7 +227,6 @@ function PublicScorecard() {
           )}
           {match.status === "live" && currentInn?.target && (
             <div className="border-t border-white/10 py-2 text-xs text-white/70">
-              {players[currentInn.batting_team_id] ? "" : ""}
               Need <b className="text-white">{Math.max(0, currentInn.target - currentInn.runs)}</b> runs off{" "}
               <b className="text-white">{Math.max(0, match.overs * 6 - currentInn.balls)}</b> balls ·{" "}
               RRR <b className="text-white">
@@ -316,7 +338,6 @@ function buildInningsTables(innBalls: Ball[], players: Record<string, Member>) {
     return batMap.get(id)!;
   };
 
-  // Track running score for FOW
   let runningRuns = 0;
   let runningLegalBalls = 0;
   const fow: FowEntry[] = [];
@@ -327,7 +348,6 @@ function buildInningsTables(innBalls: Ball[], players: Record<string, Member>) {
   let currentNonStriker: string | null = null;
 
   innBalls.forEach((b) => {
-    // Track batters in order
     if (b.batter_id && !order.includes(b.batter_id)) {
       ensureBat(b.batter_id);
     }
@@ -335,7 +355,6 @@ function buildInningsTables(innBalls: Ball[], players: Record<string, Member>) {
       ensureBat(b.non_striker_id);
     }
 
-    // Running score
     const isLegal = b.extra_type !== "wide" && b.extra_type !== "noball";
     if (isLegal) { runningLegalBalls++; partnershipBalls++; }
     runningRuns += b.runs;
@@ -366,11 +385,9 @@ function buildInningsTables(innBalls: Ball[], players: Record<string, Member>) {
       else if (wt === "retired_hurt") row.outDesc = "retired hurt";
       else row.outDesc = bowlerName ? `b ${bowlerName}` : "out";
 
-      // FOW
       const overStr = `${Math.floor(runningLegalBalls / 6)}.${runningLegalBalls % 6}`;
       fow.push({ wicket: fow.length + 1, score: runningRuns, over: overStr, batsmanName: row.name });
 
-      // Partnership
       const partRuns = runningRuns - partnershipStart;
       if (currentStriker && currentNonStriker) {
         partnerships.push({ bat1: players[currentStriker]?.player_name ?? "—", bat2: players[currentNonStriker]?.player_name ?? "—", runs: partRuns, balls: partnershipBalls });
@@ -379,7 +396,6 @@ function buildInningsTables(innBalls: Ball[], players: Record<string, Member>) {
       partnershipBalls = 0;
     }
 
-    // Update current batters
     if (b.batter_id) currentStriker = b.batter_id;
     if (b.non_striker_id) currentNonStriker = b.non_striker_id;
   });
@@ -420,7 +436,8 @@ function ScorecardTab({ match, innings, balls, players }: { match: Match; inning
         const innBalls = balls.filter((b) => b.innings_id === inn.id);
         const { batting, bowling, fow, partnerships } = buildInningsTables(innBalls, players);
         const overs = `${Math.floor(inn.balls / 6)}.${inn.balls % 6}`;
-        const headerColor = battingTeam.jersey_color || CB.green;
+        // ── FIX: guard against white / null jersey colours so white text stays readable ──
+        const headerColor = safeHeaderColor(battingTeam.jersey_color);
         const rr = inn.balls > 0 ? ((inn.runs / inn.balls) * 6).toFixed(2) : "0.00";
         return (
           <div key={inn.id} className="overflow-hidden rounded-xl border border-border bg-card">
@@ -451,7 +468,7 @@ function ScorecardTab({ match, innings, balls, players }: { match: Match; inning
                 </thead>
                 <tbody>
                   {batting.length === 0 ? (
-                    <tr><td colSpan={6} className="py-5 text-center text-xs text-muted-foreground">No batting yet</td></tr>
+                    <tr><td colSpan={6} className="py-5 text-center text-xs text-muted-foreground">No batting data yet</td></tr>
                   ) : batting.map((r, i) => (
                     <tr key={r.id} className={`border-b border-border/30 ${i % 2 === 0 ? "bg-card" : "bg-muted/20"}`}>
                       <td className="py-3 pl-4 pr-2">
@@ -508,7 +525,7 @@ function ScorecardTab({ match, innings, balls, players }: { match: Match; inning
                 </thead>
                 <tbody>
                   {bowling.length === 0 ? (
-                    <tr><td colSpan={6} className="py-5 text-center text-xs text-muted-foreground">No bowling yet</td></tr>
+                    <tr><td colSpan={6} className="py-5 text-center text-xs text-muted-foreground">No bowling data yet</td></tr>
                   ) : bowling.map((r, i) => (
                     <tr key={r.id} className={`border-b border-border/30 ${i % 2 === 0 ? "bg-card" : "bg-muted/20"}`}>
                       <td className="py-3 pl-4 pr-2 font-semibold text-sm">{r.name}</td>
@@ -624,7 +641,6 @@ function SummaryTab({ match, innings, balls, players, motmMember, motmProfile, m
   setMyInsight: (v: string) => void; setLoadingInsight: (v: boolean) => void;
   matchId: string;
 }) {
-  // Build this player's contribution for the AI prompt
   const myContrib = (() => {
     if (!myMemberId) return null;
     const myBalls = balls.filter((b) => b.batter_id === myMemberId || b.bowler_id === myMemberId || b.dismissed_player_id === myMemberId);
@@ -683,6 +699,7 @@ Rules:
     }
     setLoadingInsight(false);
   };
+
   const batRunsByPlayer = new Map<string, number>();
   const wktsByPlayer = new Map<string, number>();
   balls.forEach((b) => {
@@ -717,7 +734,6 @@ Rules:
             )}
           </div>
 
-          {/* Quick stat chips */}
           <div className="flex flex-wrap gap-2 mb-3">
             {myContrib.bBalls > 0 && (
               <span className="rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold">
@@ -743,7 +759,6 @@ Rules:
             )}
           </div>
 
-          {/* AI insight */}
           {loadingInsight && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
               <Loader2 className="h-4 w-4 animate-spin text-primary" />
@@ -830,7 +845,7 @@ function SquadsTab({ match, squad }: { match: Match; squad: { a: Member[]; b: Me
     <div className="grid gap-4 md:grid-cols-2">
       {[{ team: match.team_a, players: squad.a }, { team: match.team_b, players: squad.b }].map(({ team, players }) => (
         <div key={team.id} className="rounded-xl border border-border overflow-hidden">
-          <div className="flex items-center justify-between gap-2 px-4 py-3" style={{ background: team.jersey_color || CB.green }}>
+          <div className="flex items-center justify-between gap-2 px-4 py-3" style={{ background: safeHeaderColor(team.jersey_color) }}>
             <div className="font-display text-base text-white">{team.name}</div>
             <FollowButton entityType="team" entityId={team.id} size="sm" />
           </div>
@@ -850,7 +865,6 @@ function SquadsTab({ match, squad }: { match: Match; squad: { a: Member[]; b: Me
     </div>
   );
 }
-
 
 /* ─── Info Tab ─── */
 function InfoTab({ match, innings }: { match: Match; innings: Innings[] }) {
@@ -911,7 +925,7 @@ function InfoTab({ match, innings }: { match: Match; innings: Innings[] }) {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="grid h-7 w-7 place-items-center rounded-md font-display text-[10px] font-bold text-white"
-                        style={{ backgroundColor: team.jersey_color || CB.green }}>
+                        style={{ backgroundColor: safeHeaderColor(team.jersey_color) }}>
                         {(team.short_name || team.name).slice(0, 3).toUpperCase()}
                       </span>
                       <span className="font-semibold text-sm">{team.name}</span>
