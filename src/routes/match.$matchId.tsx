@@ -19,6 +19,7 @@ type Match = {
   result_text: string | null; motm_player_id: string | null;
   created_at: string | null; started_at: string | null; completed_at: string | null;
   toss_winner: string | null; toss_decision: string | null;
+  team_a_id: string; team_b_id: string;
   team_a: Team; team_b: Team;
 };
 type Innings = {
@@ -108,11 +109,25 @@ function PublicScorecard() {
   }, []);
 
   const load = async () => {
-    const { data: m } = await supabase
+    // Step 1: fetch match row (without nested team join to avoid 400 errors)
+    const { data: mRaw, error: mErr } = await supabase
       .from("matches")
-      .select("id, overs, venue, status, current_innings, result_text, motm_player_id, created_at, started_at, completed_at, toss_winner, toss_decision, team_a:teams!matches_team_a_id_fkey(id, name, short_name, jersey_color), team_b:teams!matches_team_b_id_fkey(id, name, short_name, jersey_color)")
+      .select("id, overs, venue, status, current_innings, result_text, motm_player_id, created_at, started_at, completed_at, toss_winner, toss_decision, team_a_id, team_b_id")
       .eq("id", matchId).maybeSingle();
-    const mm = m as unknown as Match | null;
+    if (mErr || !mRaw) return;
+    const m = mRaw as unknown as { team_a_id: string; team_b_id: string; [key: string]: unknown };
+
+    // Step 2: fetch both teams separately
+    const { data: teamsData } = await supabase
+      .from("teams")
+      .select("id, name, short_name, jersey_color")
+      .in("id", [m.team_a_id, m.team_b_id]);
+    const teamsList = (teamsData as Team[]) ?? [];
+    const teamA = teamsList.find((t) => t.id === m.team_a_id);
+    const teamB = teamsList.find((t) => t.id === m.team_b_id);
+    if (!teamA || !teamB) return;
+
+    const mm = { ...(m as object), team_a: teamA, team_b: teamB } as unknown as Match;
     setMatch(mm);
     if (!mm) return;
 
