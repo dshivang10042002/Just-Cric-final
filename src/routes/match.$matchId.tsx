@@ -46,14 +46,19 @@ const TABS: { id: Tab; label: string }[] = [
 
 /* ─── Cricbuzz colour tokens ─── */
 const CB = {
-  green: "#1a472a",       // header bg
-  greenLight: "#2d6a4f",  // sub-row bg
-  orange: "#f58220",      // active tab underline / highlights
-  orangeText: "#e07b1a",
+  // Exact Cricbuzz colors
+  green: "#2a834a",        // Cricbuzz dark green header
+  greenDark: "#1e6639",    // darker shade for batting header
+  greenTab: "#2a834a",     // tab bar bg
+  orange: "#f7941d",       // Cricbuzz orange accent
+  orangeText: "#e8870f",   // orange text
   headerText: "#ffffff",
-  rowAlt: "#f9fafb",      // light alt row (light mode)
-  border: "hsl(var(--border))",
-  muted: "hsl(var(--muted-foreground))",
+  tableHeader: "#e8f5ee",  // light green table header bg
+  rowAlt: "#f5faf7",       // very light green alt row
+  rowHover: "#edf7f1",
+  border: "#d4e9dc",       // green-tinted border
+  muted: "#6b7280",
+  livePill: "#e53e3e",
 };
 
 /* ═══════════════════════════════════════════
@@ -152,77 +157,90 @@ function PublicScorecard() {
   );
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen" style={{ background: "#f5f5f5" }}>
       <Navbar />
 
-      {/* ── Cricbuzz-style match header (dark green) ── */}
+      {/* ── Cricbuzz-exact match header ── */}
       <div style={{ background: CB.green }}>
-        <div className="mx-auto max-w-4xl px-4 pt-4 pb-0 sm:px-6">
-          {/* Match meta */}
-          <div className="flex items-center justify-between text-[11px] text-white/60 mb-3">
-            <span className="uppercase tracking-widest">{match.overs} Overs{match.venue ? ` · ${match.venue}` : ""}</span>
-            {match.status === "live" && (
-              <span className="flex items-center gap-1 rounded-full bg-red-500/20 px-2.5 py-0.5 text-[10px] font-bold text-red-300 uppercase tracking-wider">
-                <Radio className="h-2.5 w-2.5 animate-pulse" /> Live
-              </span>
-            )}
+        <div className="mx-auto max-w-4xl px-4 pt-3 pb-0 sm:px-6">
+
+          {/* Series / format bar */}
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[11px] text-white/70 font-medium">
+              {match.overs} Overs Match{match.venue ? ` · ${match.venue}` : ""}
+            </span>
+            <div className="flex items-center gap-2">
+              {match.status === "live" && (
+                <span className="flex items-center gap-1 rounded bg-red-500 px-2 py-0.5 text-[10px] font-bold text-white uppercase tracking-wider">
+                  <Radio className="h-2.5 w-2.5 animate-pulse" /> Live
+                </span>
+              )}
+              {match.status === "completed" && (
+                <span className="rounded bg-white/20 px-2 py-0.5 text-[10px] font-bold text-white uppercase tracking-wider">
+                  Final
+                </span>
+              )}
+            </div>
           </div>
 
-          {/* Team scores */}
-          {[match.team_a, match.team_b].map((team, ti) => {
-            const inn = innings.find((i) => i.batting_team_id === team.id);
-            const isBatting = currentInn?.batting_team_id === team.id && match.status === "live";
-            const oversStr = inn ? `${Math.floor(inn.balls / 6)}.${inn.balls % 6} Ov` : "";
-            return (
-              <div key={team.id} className={`flex items-center gap-3 py-3 ${ti === 0 ? "border-b border-white/10" : ""}`}>
-                <div className="flex-1 min-w-0">
-                  <span className={`block font-display text-lg truncate ${isBatting ? "text-white" : "text-white/70"}`}>
-                    {team.name}
-                    {isBatting && <span className="ml-2 text-[9px] font-bold uppercase tracking-widest text-green-300">batting</span>}
+          {/* Team score rows — exact Cricbuzz layout */}
+          <div className="rounded-t-lg overflow-hidden" style={{ background: "rgba(0,0,0,0.15)" }}>
+            {[match.team_a, match.team_b].map((team, ti) => {
+              const inn = innings.find((i) => i.batting_team_id === team.id);
+              const isBatting = currentInn?.batting_team_id === team.id && match.status === "live";
+              const overs = inn ? `${Math.floor(inn.balls / 6)}.${inn.balls % 6}` : "";
+              const rr = inn && inn.balls > 0 ? ((inn.runs / inn.balls) * 6).toFixed(2) : null;
+              return (
+                <div key={team.id}
+                  className={`flex items-center gap-3 px-4 py-3 ${ti === 0 ? "border-b border-white/10" : ""} ${isBatting ? "bg-white/10" : ""}`}>
+                  {/* Team badge */}
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full font-display text-xs font-bold text-white border border-white/30"
+                    style={{ background: team.jersey_color || CB.greenDark }}>
+                    {(team.short_name || team.name).slice(0, 3).toUpperCase()}
                   </span>
+                  {/* Name */}
+                  <div className="flex-1 min-w-0">
+                    <div className={`font-bold text-base truncate ${isBatting ? "text-white" : "text-white/80"}`}>
+                      {team.short_name || team.name}
+                    </div>
+                    {isBatting && rr && (
+                      <div className="text-[10px] text-white/60">CRR: {rr}</div>
+                    )}
+                  </div>
+                  {/* Score */}
+                  <div className="text-right shrink-0">
+                    {inn ? (
+                      <>
+                        <div className={`font-display tabular-nums ${isBatting ? "text-2xl text-white" : "text-xl text-white/80"}`}>
+                          {inn.runs}<span className="text-white/60 font-normal">-{inn.wickets}</span>
+                        </div>
+                        <div className="text-[10px] text-white/50 font-mono">({overs} Ov)</div>
+                      </>
+                    ) : (
+                      <span className="text-sm text-white/40 italic">Yet to bat</span>
+                    )}
+                  </div>
                 </div>
-                <div className="text-right shrink-0">
-                  {inn ? (
-                    <>
-                      <span className="font-display text-2xl tabular-nums text-white">
-                        {inn.runs}<span className="text-white/50 text-lg">/{inn.wickets}</span>
-                      </span>
-                      <div className="text-[10px] text-white/50 font-mono">{oversStr}</div>
-                    </>
-                  ) : (
-                    <span className="text-sm text-white/40">Yet to bat</span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
 
-          {/* Result / chase info */}
-          {match.status === "completed" && match.result_text && (
-            <div className="border-t border-white/10 py-2.5 text-sm font-semibold text-green-300">{match.result_text}</div>
-          )}
-          {match.status === "live" && currentInn?.target && (
-            <div className="border-t border-white/10 py-2 text-xs text-white/70">
-              {players[currentInn.batting_team_id] ? "" : ""}
-              Need <b className="text-white">{Math.max(0, currentInn.target - currentInn.runs)}</b> runs off{" "}
-              <b className="text-white">{Math.max(0, match.overs * 6 - currentInn.balls)}</b> balls ·{" "}
-              RRR <b className="text-white">
-                {currentInn.balls < match.overs * 6
-                  ? (((currentInn.target - currentInn.runs) / (match.overs * 6 - currentInn.balls)) * 6).toFixed(2)
-                  : "—"}
-              </b>
+          {/* Chase / result bar */}
+          {(match.result_text || (match.status === "live" && currentInn?.target)) && (
+            <div className="mt-0 px-4 py-2 text-xs font-semibold" style={{ background: "rgba(0,0,0,0.2)", color: CB.orange }}>
+              {match.result_text || (currentInn?.target ? `Need ${Math.max(0, currentInn.target - currentInn.runs)} runs in ${Math.max(0, match.overs * 6 - currentInn.balls)} balls · RRR ${currentInn.balls < match.overs * 6 ? (((currentInn.target - currentInn.runs) / (match.overs * 6 - currentInn.balls)) * 6).toFixed(2) : "—"}` : "")}
             </div>
           )}
 
-          {/* ── Cricbuzz tabs — white text, orange underline ── */}
-          <div className="flex gap-0 overflow-x-auto mt-1 -mx-4 px-4 sm:-mx-6 sm:px-6">
+          {/* Tabs — Cricbuzz style */}
+          <div className="flex gap-0 overflow-x-auto mt-2 -mx-4 px-4 sm:-mx-6 sm:px-6">
             {TABS.map((t) => (
               <button key={t.id} onClick={() => setTab(t.id)}
                 className="relative shrink-0 px-4 py-3 text-xs font-bold uppercase tracking-widest transition"
-                style={{ color: tab === t.id ? "#fff" : "rgba(255,255,255,0.5)" }}>
+                style={{ color: tab === t.id ? "#fff" : "rgba(255,255,255,0.45)" }}>
                 {t.label}
                 {tab === t.id && (
-                  <span className="absolute bottom-0 inset-x-0 h-0.5 rounded-full" style={{ background: CB.orange }} />
+                  <span className="absolute bottom-0 inset-x-0 h-[3px]" style={{ background: CB.orange }} />
                 )}
               </button>
             ))}
@@ -231,7 +249,7 @@ function PublicScorecard() {
       </div>
 
       {/* ── Tab content ── */}
-      <main className="mx-auto max-w-4xl px-4 py-4 sm:px-6">
+      <main className="mx-auto max-w-4xl px-4 py-4 sm:px-6" style={{ background: "#f5f5f5" }}>
         {tab === "info" && <InfoTab match={match} innings={innings} />}
         {tab === "live" && <LiveTab match={match} innings={innings} currentInn={currentInn} balls={balls} players={players} />}
         {tab === "scorecard" && <ScorecardTab match={match} innings={innings} balls={balls} players={players} />}
@@ -422,15 +440,19 @@ function ScorecardTab({ match, innings, balls, players }: { match: Match; inning
         const rr = inn.balls > 0 ? ((inn.runs / inn.balls) * 6).toFixed(2) : "0.00";
         return (
           <div key={inn.id} className="overflow-hidden rounded-xl border border-border bg-card">
-            {/* Innings header */}
-            <div className="flex items-center justify-between px-4 py-3" style={{ background: headerColor }}>
+            {/* Innings header — Cricbuzz green */}
+            <div className="flex items-center justify-between px-4 py-3" style={{ background: CB.green }}>
               <div>
-                <div className="font-display text-lg font-bold text-white">{battingTeam.name}</div>
-                <div className="text-[10px] text-white/60 uppercase tracking-widest">Innings {inn.innings_no}</div>
+                <div className="text-[10px] text-white/60 uppercase tracking-widest font-bold mb-0.5">
+                  {battingTeam.short_name || battingTeam.name} Innings {inn.innings_no}
+                </div>
+                <div className="font-bold text-white text-base">{battingTeam.name}</div>
               </div>
               <div className="text-right">
-                <div className="font-display text-3xl tabular-nums text-white font-bold">{inn.runs}<span className="text-white/60 text-xl">-{inn.wickets}</span></div>
-                <div className="text-[10px] text-white/60 font-mono">{overs} Ov (RR: {rr})</div>
+                <div className="font-display text-3xl tabular-nums text-white font-bold tracking-tight">
+                  {inn.runs}<span className="text-white/50 text-2xl font-normal">-{inn.wickets}</span>
+                </div>
+                <div className="text-[11px] text-white/60 font-mono mt-0.5">{overs} Ov · RR {rr}</div>
               </div>
             </div>
 
@@ -438,31 +460,32 @@ function ScorecardTab({ match, innings, balls, players }: { match: Match; inning
             <div className="overflow-x-auto">
               <table className="w-full text-sm border-collapse">
                 <thead>
-                  <tr className="bg-muted/40 border-b border-border">
-                    <th className="py-2 pl-4 pr-2 text-left text-[11px] font-bold text-muted-foreground">BATTER</th>
-                    <th className="py-2 px-2 text-center text-[11px] font-bold text-muted-foreground w-10">R</th>
-                    <th className="py-2 px-2 text-center text-[11px] font-bold text-muted-foreground w-10">B</th>
-                    <th className="py-2 px-2 text-center text-[11px] font-bold text-muted-foreground w-10">4s</th>
-                    <th className="py-2 px-2 text-center text-[11px] font-bold text-muted-foreground w-10">6s</th>
-                    <th className="py-2 pl-2 pr-4 text-right text-[11px] font-bold text-muted-foreground w-14">SR</th>
+                  <tr style={{ background: CB.tableHeader, borderBottom: `2px solid ${CB.border}` }}>
+                    <th className="py-2 pl-4 pr-2 text-left text-[11px] font-bold" style={{ color: CB.green }}>BATTER</th>
+                    <th className="py-2 px-2 text-center text-[11px] font-bold w-10" style={{ color: CB.green }}>R</th>
+                    <th className="py-2 px-2 text-center text-[11px] font-bold w-10" style={{ color: CB.green }}>B</th>
+                    <th className="py-2 px-2 text-center text-[11px] font-bold w-10" style={{ color: CB.green }}>4s</th>
+                    <th className="py-2 px-2 text-center text-[11px] font-bold w-10" style={{ color: CB.green }}>6s</th>
+                    <th className="py-2 pl-2 pr-4 text-right text-[11px] font-bold w-14" style={{ color: CB.green }}>SR</th>
                   </tr>
                 </thead>
                 <tbody>
                   {batting.length === 0 ? (
                     <tr><td colSpan={6} className="py-5 text-center text-xs text-muted-foreground">No batting yet</td></tr>
                   ) : batting.map((r, i) => (
-                    <tr key={r.id} className={`border-b border-border/30 ${i % 2 === 0 ? "bg-card" : "bg-muted/20"}`}>
-                      <td className="py-3 pl-4 pr-2">
-                        <div className="font-semibold text-sm" style={!r.out ? { color: CB.orangeText } : {}}>
-                          {r.name}{!r.out && <span className="ml-1.5 text-[9px] font-bold text-primary">●</span>}
+                    <tr key={r.id} style={{ background: i % 2 === 0 ? "#fff" : CB.rowAlt, borderBottom: `1px solid ${CB.border}` }}>
+                      <td className="py-2.5 pl-4 pr-2">
+                        <div className="font-semibold text-sm" style={!r.out ? { color: CB.orangeText } : { color: "#111" }}>
+                          {r.name}
+                          {!r.out && <span className="ml-1 text-[9px]" style={{ color: CB.orange }}>●</span>}
                         </div>
-                        <div className="text-[11px] text-muted-foreground mt-0.5">{r.out ? r.outDesc : "not out"}</div>
+                        <div className="text-[11px] mt-0.5" style={{ color: CB.muted }}>{r.out ? r.outDesc : "not out"}</div>
                       </td>
-                      <td className="py-3 px-2 text-center font-bold text-base">{r.runs}</td>
-                      <td className="py-3 px-2 text-center font-mono text-xs text-muted-foreground">{r.balls}</td>
-                      <td className="py-3 px-2 text-center font-mono text-xs">{r.fours}</td>
-                      <td className="py-3 px-2 text-center font-mono text-xs font-bold" style={{ color: CB.orangeText }}>{r.sixes}</td>
-                      <td className="py-3 pl-2 pr-4 text-right font-mono text-xs text-muted-foreground">
+                      <td className="py-2.5 px-2 text-center font-bold text-base" style={{ color: r.runs >= 50 ? CB.orangeText : "#111" }}>{r.runs}</td>
+                      <td className="py-2.5 px-2 text-center font-mono text-xs" style={{ color: CB.muted }}>{r.balls}</td>
+                      <td className="py-2.5 px-2 text-center font-mono text-xs font-semibold" style={{ color: CB.green }}>{r.fours}</td>
+                      <td className="py-2.5 px-2 text-center font-mono text-xs font-bold" style={{ color: CB.orange }}>{r.sixes}</td>
+                      <td className="py-2.5 pl-2 pr-4 text-right font-mono text-xs" style={{ color: CB.muted }}>
                         {r.balls > 0 ? ((r.runs / r.balls) * 100).toFixed(1) : "—"}
                       </td>
                     </tr>
@@ -472,9 +495,9 @@ function ScorecardTab({ match, innings, balls, players }: { match: Match; inning
             </div>
 
             {/* Extras + total */}
-            <div className="border-t border-b border-border bg-muted/30 px-4 py-2 flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Extras <b className="text-foreground">{inn.extras}</b></span>
-              <span className="text-muted-foreground">Total <b className="text-foreground">{inn.runs}-{inn.wickets} ({overs} Ov, RR: {rr})</b></span>
+            <div className="px-4 py-2 flex items-center justify-between text-xs" style={{ background: CB.tableHeader, borderTop: `1px solid ${CB.border}`, borderBottom: `1px solid ${CB.border}` }}>
+              <span style={{ color: CB.muted }}>Extras <b style={{ color: "#111" }}>{inn.extras}</b></span>
+              <span style={{ color: CB.muted }}>Total <b style={{ color: "#111" }}>{inn.runs}-{inn.wickets} ({overs} Ov)</b> · RR <b style={{ color: CB.green }}>{rr}</b></span>
             </div>
 
             {/* Yet to bat */}
@@ -495,26 +518,26 @@ function ScorecardTab({ match, innings, balls, players }: { match: Match; inning
             <div className="overflow-x-auto">
               <table className="w-full text-sm border-collapse">
                 <thead>
-                  <tr className="bg-muted/40 border-b border-border">
-                    <th className="py-2 pl-4 pr-2 text-left text-[11px] font-bold text-muted-foreground">BOWLER</th>
-                    <th className="py-2 px-2 text-center text-[11px] font-bold text-muted-foreground w-10">O</th>
-                    <th className="py-2 px-2 text-center text-[11px] font-bold text-muted-foreground w-10">M</th>
-                    <th className="py-2 px-2 text-center text-[11px] font-bold text-muted-foreground w-10">R</th>
-                    <th className="py-2 px-2 text-center text-[11px] font-bold text-muted-foreground w-10">W</th>
-                    <th className="py-2 pl-2 pr-4 text-right text-[11px] font-bold text-muted-foreground w-14">ECO</th>
+                  <tr style={{ background: CB.tableHeader, borderTop: `2px solid ${CB.green}`, borderBottom: `1px solid ${CB.border}` }}>
+                    <th className="py-2 pl-4 pr-2 text-left text-[11px] font-bold" style={{ color: CB.green }}>BOWLER</th>
+                    <th className="py-2 px-2 text-center text-[11px] font-bold w-10" style={{ color: CB.green }}>O</th>
+                    <th className="py-2 px-2 text-center text-[11px] font-bold w-10" style={{ color: CB.green }}>M</th>
+                    <th className="py-2 px-2 text-center text-[11px] font-bold w-10" style={{ color: CB.green }}>R</th>
+                    <th className="py-2 px-2 text-center text-[11px] font-bold w-10" style={{ color: CB.green }}>W</th>
+                    <th className="py-2 pl-2 pr-4 text-right text-[11px] font-bold w-14" style={{ color: CB.green }}>ECO</th>
                   </tr>
                 </thead>
                 <tbody>
                   {bowling.length === 0 ? (
                     <tr><td colSpan={6} className="py-5 text-center text-xs text-muted-foreground">No bowling yet</td></tr>
                   ) : bowling.map((r, i) => (
-                    <tr key={r.id} className={`border-b border-border/30 ${i % 2 === 0 ? "bg-card" : "bg-muted/20"}`}>
-                      <td className="py-3 pl-4 pr-2 font-semibold text-sm">{r.name}</td>
-                      <td className="py-3 px-2 text-center font-mono text-xs">{Math.floor(r.legal / 6)}.{r.legal % 6}</td>
-                      <td className="py-3 px-2 text-center font-mono text-xs text-muted-foreground">{r.maidens}</td>
-                      <td className="py-3 px-2 text-center font-mono text-xs">{r.runs}</td>
-                      <td className="py-3 px-2 text-center font-bold text-base" style={{ color: CB.orangeText }}>{r.wkts}</td>
-                      <td className="py-3 pl-2 pr-4 text-right font-mono text-xs text-muted-foreground">
+                    <tr key={r.id} style={{ background: i % 2 === 0 ? "#fff" : CB.rowAlt, borderBottom: `1px solid ${CB.border}` }}>
+                      <td className="py-2.5 pl-4 pr-2 font-semibold text-sm" style={{ color: "#111" }}>{r.name}</td>
+                      <td className="py-2.5 px-2 text-center font-mono text-xs" style={{ color: "#111" }}>{Math.floor(r.legal / 6)}.{r.legal % 6}</td>
+                      <td className="py-2.5 px-2 text-center font-mono text-xs" style={{ color: CB.muted }}>{r.maidens}</td>
+                      <td className="py-2.5 px-2 text-center font-mono text-xs" style={{ color: "#111" }}>{r.runs}</td>
+                      <td className="py-2.5 px-2 text-center font-bold text-base" style={{ color: r.wkts > 0 ? CB.orangeText : "#111" }}>{r.wkts}</td>
+                      <td className="py-2.5 pl-2 pr-4 text-right font-mono text-xs" style={{ color: CB.muted }}>
                         {r.legal > 0 ? ((r.runs / r.legal) * 6).toFixed(2) : "—"}
                       </td>
                     </tr>
@@ -525,8 +548,8 @@ function ScorecardTab({ match, innings, balls, players }: { match: Match; inning
 
             {/* Fall of Wickets */}
             {fow.length > 0 && (
-              <div className="border-t border-border px-4 py-3">
-                <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Fall of Wickets</div>
+              <div className="px-4 py-3" style={{ borderTop: `1px solid ${CB.border}`, background: "#fff" }}>
+                <div className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: CB.green }}>Fall of Wickets</div>
                 <div className="flex flex-wrap gap-x-4 gap-y-1">
                   {fow.map((f) => (
                     <span key={f.wicket} className="text-xs text-foreground">
@@ -540,8 +563,8 @@ function ScorecardTab({ match, innings, balls, players }: { match: Match; inning
 
             {/* Partnerships */}
             {partnerships.length > 0 && (
-              <div className="border-t border-border px-4 py-3">
-                <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Partnerships</div>
+              <div className="px-4 py-3" style={{ borderTop: `1px solid ${CB.border}`, background: "#fff" }}>
+                <div className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: CB.green }}>Partnerships</div>
                 <div className="space-y-1.5">
                   {partnerships.map((p, i) => (
                     <div key={i} className="flex items-center gap-2 text-xs">
