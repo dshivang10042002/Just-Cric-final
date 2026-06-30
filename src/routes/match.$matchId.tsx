@@ -4,6 +4,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { supabase } from "@/integrations/supabase/client";
 import { FollowButton } from "@/components/FollowButton";
 import { Radio, Star, Zap, Loader2 } from "lucide-react";
+import { VideoStreamEmbed } from "@/components/VideoStreamEmbed";
 
 export const Route = createFileRoute("/match/$matchId")({
   ssr: false,
@@ -18,6 +19,7 @@ type Match = {
   status: "scheduled" | "live" | "completed"; current_innings: number;
   result_text: string | null; motm_player_id: string | null;
   created_at: string | null; completed_at: string | null;
+  stream_url: string | null; stream_status: "idle" | "live" | "ended";
   team_a: Team; team_b: Team;
 };
 type Innings = {
@@ -94,7 +96,7 @@ function PublicScorecard() {
   const load = async () => {
     const { data: m } = await supabase
       .from("matches")
-      .select("id, overs, venue, status, current_innings, result_text, motm_player_id, created_at, completed_at, team_a:teams!matches_team_a_id_fkey(id, name, short_name, jersey_color), team_b:teams!matches_team_b_id_fkey(id, name, short_name, jersey_color)")
+      .select("id, overs, venue, status, current_innings, result_text, motm_player_id, created_at, completed_at, stream_url, stream_status, team_a:teams!matches_team_a_id_fkey(id, name, short_name, jersey_color), team_b:teams!matches_team_b_id_fkey(id, name, short_name, jersey_color)")
       .eq("id", matchId).maybeSingle();
     const mm = m as unknown as Match | null;
     setMatch(mm);
