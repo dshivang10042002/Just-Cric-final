@@ -4,13 +4,13 @@ import { toast } from "sonner";
 import { Navbar } from "@/components/layout/Navbar";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, Coins } from "lucide-react";
- 
+
 export const Route = createFileRoute("/_authenticated/matches/new")({
   component: NewMatch,
 });
- 
+
 type Team = { id: string; name: string; short_name: string | null; jersey_color: string | null };
- 
+
 function NewMatch() {
   const navigate = useNavigate();
   const [teams, setTeams] = useState<Team[]>([]);
@@ -25,10 +25,10 @@ function NewMatch() {
   const [flipping, setFlipping] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
- 
+
   const teamAName = teams.find((t) => t.id === teamA)?.name ?? "Team A";
   const teamBName = teams.find((t) => t.id === teamB)?.name ?? "Team B";
- 
+
   const flipCoin = () => {
     if (!teamA || !teamB) return setErr("Pick both teams before tossing.");
     if (!callerCall) return setErr(`${teamBName} must call Heads or Tails first.`);
@@ -47,13 +47,13 @@ function NewMatch() {
       toast.success(`🪙 ${result.toUpperCase()} — ${name} won the toss!`);
     }, 1100);
   };
- 
+
   const resetToss = () => {
     setCoinResult(null);
     setTossWinner("");
     setCallerCall(null);
   };
- 
+
   useEffect(() => {
     (async () => {
       const { data: u } = await supabase.auth.getUser();
@@ -66,7 +66,7 @@ function NewMatch() {
       setTeams((data as Team[]) ?? []);
     })();
   }, []);
- 
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr(null);
@@ -112,10 +112,10 @@ function NewMatch() {
     });
     setSaving(false);
     if (e2) return setErr(e2.message);
-    toast.success("Match created — let's score!");
-    navigate({ to: "/matches/$matchId/score", params: { matchId: match.id } });
+    toast.success("Match created!");
+    navigate({ to: "/matches/$matchId/squad", params: { matchId: match.id } });
   };
- 
+
   if (teams.length < 2) {
     return (
       <div className="min-h-screen bg-background">
@@ -143,7 +143,7 @@ function NewMatch() {
       </div>
     );
   }
- 
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -154,11 +154,11 @@ function NewMatch() {
         >
           <ArrowLeft className="h-4 w-4" /> Matches
         </Link>
-        <h1 className="mt-3 font-display text-3xl tracking-tight sm:text-4xl">
+        <h1 className="mt-3 font-display text-4xl tracking-tight">
           New <span className="text-primary">Match</span>
         </h1>
- 
-        <form onSubmit={submit} className="mt-5 space-y-5 rounded-xl border border-border bg-card p-4 sm:p-6">
+
+        <form onSubmit={submit} className="mt-6 space-y-5 rounded-xl border border-border bg-card p-6">
           <div className="grid gap-5 sm:grid-cols-2">
             <Field label="Team A" required>
               <select className="input" value={teamA} onChange={(e) => setTeamA(e.target.value)} required>
@@ -181,7 +181,7 @@ function NewMatch() {
               </select>
             </Field>
           </div>
- 
+
           <div className="grid gap-5 sm:grid-cols-2">
             <Field label="Overs" required>
               <input
@@ -203,14 +203,14 @@ function NewMatch() {
               />
             </Field>
           </div>
- 
+
           <Field label="Toss" required>
             <div className="space-y-4 rounded-lg border border-border bg-background p-4">
               <p className="text-center text-xs text-muted-foreground">
                 <span className="font-semibold text-foreground">{teamAName}</span> flips the coin.{" "}
                 <span className="font-semibold text-foreground">{teamBName}</span> calls it.
               </p>
- 
+
               {/* Caller's call */}
               <div>
                 <span className="mb-2 block text-center text-[10px] uppercase tracking-widest text-muted-foreground">
@@ -233,7 +233,7 @@ function NewMatch() {
                   })}
                 </div>
               </div>
- 
+
               {/* Coin */}
               <div className="flex flex-col items-center">
                 <button
@@ -244,7 +244,7 @@ function NewMatch() {
                   aria-label="Flip the coin"
                 >
                   {coinResult && !flipping ? (
-                    <span className="font-display text-base uppercase tracking-wider text-primary">
+                    <span className="font-display text-lg uppercase tracking-wider text-primary">
                       {coinResult === "heads" ? "H" : "T"}
                     </span>
                   ) : (
@@ -273,7 +273,7 @@ function NewMatch() {
                   </button>
                 )}
               </div>
- 
+
               {/* Decision */}
               {tossWinner && !flipping && (
                 <div>
@@ -299,14 +299,14 @@ function NewMatch() {
               )}
             </div>
           </Field>
- 
- 
+
+
           {err && (
             <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {err}
             </div>
           )}
- 
+
           <button
             type="submit"
             disabled={saving}
@@ -319,7 +319,7 @@ function NewMatch() {
     </div>
   );
 }
- 
+
 function Field({
   label,
   required,

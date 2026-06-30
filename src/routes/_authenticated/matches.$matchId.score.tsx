@@ -3,10 +3,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Navbar } from "@/components/layout/Navbar";
 import { AddStreamLink } from "@/components/AddStreamLink";
+import { SquadEditor } from "@/components/SquadEditor";
+import { CoScorerPanel } from "@/components/CoScorerPanel";
+import { TakeoverBanner } from "@/components/TakeoverBanner";
 import { supabase } from "@/integrations/supabase/client";
 import {
   ArrowLeft, Eye, Undo2, RefreshCw, Flag, Star, ChevronRight,
-  Zap, Target, Activity, User,
+  Zap, Target, Activity, User, Users,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/matches/$matchId/score")({
@@ -34,7 +37,7 @@ type Ball = {
 };
 type Member = {
   id: string; player_name: string; jersey_number: number | null;
-  avatar_url: string | null;
+  avatar_url: string | null; role: string | null;
 };
 type ExtraKind = "wide" | "noball" | "bye" | "legbye";
 
@@ -285,6 +288,70 @@ function WicketModal({
   );
 }
 
+/* ── Retired Out modal ──
+   Distinct from "Retired Hurt" inside WicketModal: this is a deliberate
+   tactical retirement (counts as a wicket, batter cannot return). */
+function RetiredOutModal({
+  battingSquad, striker, nonStriker, onConfirm, onCancel,
+}: {
+  battingSquad: Member[];
+  striker: string | null;
+  nonStriker: string | null;
+  onConfirm: (playerId: string) => void;
+  onCancel: () => void;
+}) {
+  const [selectedId, setSelectedId] = useState<string>(striker ?? "");
+  const candidates = [striker, nonStriker].filter(Boolean) as string[];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+      <div className="w-full max-w-sm rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
+        <div className="border-b border-amber-400/20 bg-amber-400/10 px-5 py-4">
+          <div className="text-[10px] uppercase tracking-widest text-amber-600 dark:text-amber-400 font-bold mb-0.5">
+            🩹 Retired Out
+          </div>
+          <div className="font-display text-lg text-foreground">Who is retiring out?</div>
+        </div>
+
+        <div className="p-4 space-y-2">
+          {candidates.map((id) => {
+            const mem = battingSquad.find((m) => m.id === id);
+            return (
+              <button
+                key={id}
+                onClick={() => setSelectedId(id)}
+                className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-sm transition ${
+                  selectedId === id ? "border-amber-400 bg-amber-400/10" : "border-border bg-background hover:border-amber-400/40"
+                }`}
+              >
+                <PlayerAvatar member={mem} size="sm" />
+                <span className="font-medium flex-1 text-left">{mem?.player_name ?? "—"}</span>
+                {selectedId === id && <span className="text-amber-600 dark:text-amber-400 text-xs font-bold">✓</span>}
+              </button>
+            );
+          })}
+          <div className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2.5 text-xs text-amber-600 dark:text-amber-400">
+            Counted as a wicket. Player cannot return to bat in this innings.
+          </div>
+        </div>
+
+        <div className="border-t border-border p-4 grid grid-cols-2 gap-2">
+          <button onClick={onCancel} className="rounded-xl border border-border bg-background py-2.5 text-sm font-semibold transition hover:bg-secondary">
+            Cancel
+          </button>
+          <button
+            onClick={() => selectedId && onConfirm(selectedId)}
+            disabled={!selectedId}
+            className="rounded-xl bg-amber-500 py-2.5 text-sm font-semibold text-white transition active:scale-95 disabled:opacity-50"
+          >
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ================================================================
    MAIN SCORE PAGE
 ================================================================ */
@@ -301,6 +368,55 @@ function ScorePage() {
   const [breakDismissed, setBreakDismissed] = useState(false);
   const [wicketPending, setWicketPending] = useState<{ runs: number; extra: ExtraKind | null } | null>(null);
   const [retiredOutOpen, setRetiredOutOpen] = useState(false);
+  const [squadEditorTeam, setSquadEditorTeam] = useState<"a" | "b" | null>(null);
+  const [allBattingMembers, setAllBattingMembers] = useState<Member[]>([]);
+  const [allBowlingMembers, setAllBowlingMembers] = useState<Member[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isPrimaryScorer, setIsPrimaryScorer] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setCurrentUserId(data.user?.id ?? null);
+    });
+  }, []);
+
+  // Determine if current user is the primary (active) scorer
+  useEffect(() => {
+    if (!match || !currentUserId) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from("matches")
+      .select("active_scorer_id")
+      .eq("id", match.id)
+      .maybeSingle()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then(({ data }: { data: any }) => {
+        setIsPrimaryScorer(data?.active_scorer_id === currentUserId || !data?.active_scorer_id);
+      });
+  }, [match, currentUserId]);
+
+  // Load ALL team members (not just those who've batted/bowled) for squad editing
+  useEffect(() => {
+    if (!innings) return;
+    supabase.from("team_members").select("id, player_name, jersey_number, role, profiles(avatar_url)")
+      .eq("team_id", innings.batting_team_id)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then(({ data }: { data: any }) => {
+        setAllBattingMembers((data ?? []).map((r: any) => ({
+          id: r.id, player_name: r.player_name, jersey_number: r.jersey_number,
+          avatar_url: r.profiles?.avatar_url ?? null, role: r.role ?? null,
+        })));
+      });
+    supabase.from("team_members").select("id, player_name, jersey_number, role, profiles(avatar_url)")
+      .eq("team_id", innings.bowling_team_id)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then(({ data }: { data: any }) => {
+        setAllBowlingMembers((data ?? []).map((r: any) => ({
+          id: r.id, player_name: r.player_name, jersey_number: r.jersey_number,
+          avatar_url: r.profiles?.avatar_url ?? null, role: r.role ?? null,
+        })));
+      });
+  }, [innings?.batting_team_id, innings?.bowling_team_id]);
 
   // Bowler rule helpers
   const bowlerOversCount = useMemo(() => {
@@ -357,7 +473,7 @@ function ScorePage() {
       // Flatten profile avatar into member
       const flattenMember = (raw: unknown): Member => {
         const r = raw as { id: string; player_name: string; jersey_number: number | null; profiles?: { avatar_url?: string | null } | null };
-        return { id: r.id, player_name: r.player_name, jersey_number: r.jersey_number, avatar_url: r.profiles?.avatar_url ?? null };
+        return { id: r.id, player_name: r.player_name, jersey_number: r.jersey_number, avatar_url: r.profiles?.avatar_url ?? null, role: null };
       };
       setBalls((bs as Ball[]) ?? []);
       setBattingSquad((bat ?? []).map(flattenMember));
@@ -534,6 +650,42 @@ function ScorePage() {
     setBusy(false);
   };
 
+  // Retired Out: counts as a wicket, doesn't consume a ball or change the bowler's figures.
+  const confirmRetiredOut = async (playerId: string) => {
+    if (!innings) return;
+    setRetiredOutOpen(false);
+    setBusy(true);
+    const { error: bErr } = await supabase.from("balls").insert({
+      innings_id: innings.id,
+      ball_index: balls.length > 0 ? Math.max(...balls.map((b) => b.ball_index)) + 1 : 1,
+      over_number: Math.floor(innings.balls / 6),
+      ball_in_over: (innings.balls % 6) + 1,
+      runs: 0,
+      extra_type: null,
+      is_wicket: true,
+      wicket_type: "retired_out",
+      batter_id: innings.striker_id,
+      non_striker_id: innings.non_striker_id,
+      bowler_id: innings.bowler_id,
+      dismissed_player_id: playerId,
+    });
+    if (bErr) { setBusy(false); return toast.error(bErr.message); }
+
+    const newWickets = innings.wickets + 1;
+    const newStriker = playerId === innings.striker_id ? null : innings.striker_id;
+    const newNonStriker = playerId === innings.non_striker_id ? null : innings.non_striker_id;
+
+    const { error: iErr } = await supabase.from("innings").update({
+      wickets: newWickets,
+      striker_id: newStriker,
+      non_striker_id: newNonStriker,
+    }).eq("id", innings.id);
+    if (iErr) { setBusy(false); return toast.error(iErr.message); }
+
+    await load();
+    setBusy(false);
+  };
+
   const undo = async () => {
     if (!innings || balls.length === 0) return;
     setBusy(true);
@@ -629,11 +781,21 @@ function ScorePage() {
 
   return (
     <div className="min-h-screen bg-background pb-12">
+      {squadEditorTeam && match && innings && (
+        <SquadEditor
+          matchId={matchId}
+          teamId={squadEditorTeam === "a" ? match.team_a.id : match.team_b.id}
+          teamName={squadEditorTeam === "a" ? match.team_a.name : match.team_b.name}
+          allMembers={squadEditorTeam === "a" ? allBattingMembers : allBowlingMembers}
+          onClose={() => setSquadEditorTeam(null)}
+          onSaved={() => load()}
+        />
+      )}
       {retiredOutOpen && innings && (
         <RetiredOutModal
           battingSquad={battingSquad}
           striker={innings.striker_id}
-          nonStriker={innings.non_striker_id}
+          nonStriker={innings.non_striker_id ?? null}
           onConfirm={confirmRetiredOut}
           onCancel={() => setRetiredOutOpen(false)}
         />
@@ -650,6 +812,8 @@ function ScorePage() {
 
       <Navbar />
       <main className="mx-auto max-w-lg px-3 py-4 sm:px-4 sm:py-6">
+
+        <TakeoverBanner matchId={matchId} currentUserId={currentUserId} />
 
         {/* Top bar */}
         <div className="flex items-center justify-between mb-4">
