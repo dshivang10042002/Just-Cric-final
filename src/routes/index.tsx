@@ -153,24 +153,31 @@ function Landing() {
         )}
       </div>
 
-      {/* ── Pricing ── */}
-      <section id="pricing" className="mx-auto max-w-3xl px-4 py-16 text-center sm:px-6">
-        <h2 className="font-display text-4xl tracking-tight sm:text-5xl">Free at launch</h2>
-        <p className="mt-3 text-muted-foreground">Unlimited matches, scorecards, 3 teams and 2 tournaments — forever free.</p>
-        <div className="mt-8">
-          <Link to="/auth" search={{ mode: "register" }}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3.5 font-bold text-primary-foreground transition active:scale-95 hover:brightness-110 glow-primary">
-            Create your free account <ArrowRight />
-          </Link>
-        </div>
-      </section>
+      {/* ── Pricing — only for logged-out users ── */}
+      {!isLoggedIn && (
+        <section id="pricing" className="mx-auto max-w-3xl px-4 py-16 text-center sm:px-6">
+          <h2 className="font-display text-4xl tracking-tight sm:text-5xl">Free at launch</h2>
+          <p className="mt-3 text-muted-foreground">Unlimited matches, scorecards, 3 teams and 2 tournaments — forever free.</p>
+          <div className="mt-8">
+            <Link to="/auth" search={{ mode: "register" }}
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3.5 font-bold text-primary-foreground transition active:scale-95 hover:brightness-110 glow-primary">
+              Create your free account <ArrowRight />
+            </Link>
+          </div>
+        </section>
+      )}
 
-      <footer className="border-t border-border">
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-4 py-8 text-sm text-muted-foreground sm:flex-row sm:px-6">
-          <div><span className="font-display text-lg text-primary">JustCric</span> · © {new Date().getFullYear()}</div>
+      {/* ── Dark footer ── */}
+      <footer style={{ background: "#0f172a" }}>
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-4 py-8 text-sm sm:flex-row sm:px-6">
+          <div className="text-gray-300">
+            <span className="font-display text-lg text-white">JustCric</span>
+            <span className="mx-2 text-gray-500">·</span>
+            <span className="text-white">© JustCric {new Date().getFullYear()} — All rights reserved</span>
+          </div>
           <div className="flex gap-5">
-            <a href="#live" className="hover:text-primary">Live</a>
-            <a href="#pricing" className="hover:text-primary">Pricing</a>
+            <a href="#live" className="text-gray-300 transition hover:text-white">Live</a>
+            {!isLoggedIn && <a href="#pricing" className="text-gray-300 transition hover:text-white">Pricing</a>}
           </div>
         </div>
       </footer>
@@ -490,67 +497,75 @@ function SectionHeader({ title, sub, icon }: { title: string; sub: string; icon:
   );
 }
 
+/* ── Photo-dominant player card (A1/A2) ── */
+function colorForPlayer(name: string) {
+  const colors = ["#003527", "#9B5DE5", "#3DA9FC", "#E63946", "#06D6A0", "#F15BB5", "#D4AF37", "#FB8500"];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return colors[Math.abs(hash) % colors.length];
+}
+
 function PlayerCard({ p, rank, valueLabel }: { p: PlayerStat; rank: number; valueLabel: string }) {
-  const rankColors = ["text-yellow-500", "text-slate-400", "text-amber-600"];
-  const rankBg = ["bg-yellow-400/10 border-yellow-400/30", "bg-slate-400/10 border-slate-400/30", "bg-amber-600/10 border-amber-600/30"];
   const isTop3 = rank <= 3;
+  const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : null;
+
   return (
-    <div className={`relative overflow-hidden rounded-2xl border bg-card transition hover:shadow-lg hover:-translate-y-0.5 ${isTop3 ? rankBg[rank - 1] : "border-border hover:border-primary/30"}`}>
-      <div className={`absolute top-3 right-3 grid h-7 w-7 place-items-center rounded-full border text-xs font-bold ${isTop3 ? rankBg[rank - 1] + " " + rankColors[rank - 1] : "border-border bg-secondary text-muted-foreground"}`}>
-        {rank}
-      </div>
-      <div className="flex items-center gap-4 p-4 pb-3">
-        <div className="relative shrink-0">
-          {p.avatar ? (
-            <img src={p.avatar} alt={p.name} className="h-16 w-16 rounded-2xl object-cover border-2 border-border shadow-md" />
-          ) : (
-            <div className="h-16 w-16 rounded-2xl grid place-items-center bg-primary/15 border-2 border-primary/20 shadow-md">
-              <span className="font-display text-2xl text-primary">{p.name.slice(0, 1).toUpperCase()}</span>
-            </div>
-          )}
-          {isTop3 && (
-            <div className="absolute -bottom-1.5 -right-1.5 text-base">
-              {rank === 1 ? "🥇" : rank === 2 ? "🥈" : "🥉"}
-            </div>
-          )}
-        </div>
-        <div className="min-w-0 flex-1 pr-8">
-          <div className="font-display text-lg truncate leading-tight">{p.name}</div>
-          <div className="text-xs text-muted-foreground truncate mt-0.5">{p.team}</div>
-          {p.city && <div className="text-[10px] text-muted-foreground/70 mt-0.5">📍 {p.city}</div>}
-        </div>
-      </div>
-      <div className="border-t border-border/50 grid grid-cols-4 divide-x divide-border/50">
-        <div className="px-2 py-2.5 text-center">
-          <div className={`font-display text-lg tabular-nums ${isTop3 ? rankColors[rank - 1] : "text-primary"}`}>{p.value}</div>
-          <div className="text-[9px] uppercase tracking-wider text-muted-foreground mt-0.5">{valueLabel}</div>
-        </div>
-        <div className="px-2 py-2.5 text-center">
-          <div className="font-display text-lg tabular-nums text-foreground">{p.matches}</div>
-          <div className="text-[9px] uppercase tracking-wider text-muted-foreground mt-0.5">Innings</div>
-        </div>
-        {p.wkts !== undefined ? (
-          <div className="px-2 py-2.5 text-center">
-            <div className="font-display text-lg tabular-nums text-accent">{p.wkts}</div>
-            <div className="text-[9px] uppercase tracking-wider text-muted-foreground mt-0.5">Wickets</div>
-          </div>
-        ) : (
-          <div className="px-2 py-2.5 text-center">
-            <div className="text-[10px] font-semibold text-foreground truncate mt-1">{p.role ?? "—"}</div>
-            <div className="text-[9px] uppercase tracking-wider text-muted-foreground mt-0.5">Role</div>
-          </div>
-        )}
-        <div className="px-2 py-2.5 text-center">
-          <div className="text-[10px] font-semibold text-foreground truncate mt-1">{p.role ?? "—"}</div>
-          <div className="text-[9px] uppercase tracking-wider text-muted-foreground mt-0.5">Role</div>
-        </div>
-      </div>
-      {(p.batting_style || p.bowling_style) && (
-        <div className="border-t border-border/50 px-3 py-2 flex flex-wrap gap-1.5">
-          {p.batting_style && <span className="rounded-full border border-border bg-background px-2 py-0.5 text-[10px] text-muted-foreground">🏏 {p.batting_style}</span>}
-          {p.bowling_style && <span className="rounded-full border border-border bg-background px-2 py-0.5 text-[10px] text-muted-foreground">🎳 {p.bowling_style}</span>}
+    <div className="group relative aspect-[3/4] overflow-hidden rounded-2xl shadow-md transition hover:shadow-xl hover:-translate-y-1">
+      {/* Hero photo / avatar fill */}
+      {p.avatar ? (
+        <img
+          src={p.avatar}
+          alt={p.name}
+          className="absolute inset-0 h-full w-full object-cover transition duration-300 group-hover:scale-105"
+        />
+      ) : (
+        <div
+          className="absolute inset-0 grid place-items-center"
+          style={{ background: `linear-gradient(135deg, ${colorForPlayer(p.name)}, ${colorForPlayer(p.name)}cc)` }}
+        >
+          <span className="font-display text-7xl text-white/90">{p.name.slice(0, 1).toUpperCase()}</span>
         </div>
       )}
+
+      {/* Top scrim for rank badge legibility */}
+      <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/40 to-transparent" />
+
+      {/* Rank badge */}
+      <div className="absolute top-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/20 backdrop-blur-md border border-white/30 text-sm font-bold text-white shadow-sm">
+        {medal ?? rank}
+      </div>
+
+      {/* Bottom glassmorphism overlay */}
+      <div className="absolute inset-x-0 bottom-0">
+        <div className="bg-gradient-to-t from-black/85 via-black/50 to-transparent px-4 pt-10 pb-4">
+          <div className="font-display text-lg leading-tight text-white truncate">{p.name}</div>
+          <div className="mt-0.5 flex items-center gap-1.5 flex-wrap">
+            {p.role && (
+              <span className="rounded-full bg-white/15 backdrop-blur-sm px-2 py-0.5 text-[10px] font-medium text-white/90 border border-white/20">
+                {p.role}
+              </span>
+            )}
+            <span className="text-[11px] text-white/70 truncate">{p.team}</span>
+          </div>
+          <div className="mt-2 flex items-end justify-between">
+            <div>
+              <div className="font-display text-2xl tabular-nums text-white leading-none">{p.value}</div>
+              <div className="text-[9px] uppercase tracking-wider text-white/60 mt-0.5">{valueLabel}</div>
+            </div>
+            {p.wkts !== undefined ? (
+              <div className="text-right">
+                <div className="font-display text-lg tabular-nums text-white/90 leading-none">{p.wkts}</div>
+                <div className="text-[9px] uppercase tracking-wider text-white/60 mt-0.5">Wkts</div>
+              </div>
+            ) : (
+              <div className="text-right">
+                <div className="font-display text-lg tabular-nums text-white/90 leading-none">{p.matches}</div>
+                <div className="text-[9px] uppercase tracking-wider text-white/60 mt-0.5">Inns</div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -558,7 +573,7 @@ function PlayerCard({ p, rank, valueLabel }: { p: PlayerStat; rank: number; valu
 function PlayerSlider({ players, valueLabel, loading }: { players: PlayerStat[]; valueLabel: string; loading: boolean }) {
   if (loading) return (
     <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-none -mx-4 px-4 sm:-mx-6 sm:px-6">
-      {[0,1,2,3,4,5].map((i) => <div key={i} className="h-44 w-60 shrink-0 animate-pulse rounded-2xl border border-border bg-card" />)}
+      {[0,1,2,3,4,5].map((i) => <div key={i} className="aspect-[3/4] w-44 shrink-0 animate-pulse rounded-2xl bg-secondary sm:w-48" />)}
     </div>
   );
   if (!players.length) return (
@@ -569,7 +584,7 @@ function PlayerSlider({ players, valueLabel, loading }: { players: PlayerStat[];
   return (
     <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-none -mx-4 px-4 sm:-mx-6 sm:px-6">
       {players.map((p, i) => (
-        <div key={p.id} className="w-60 shrink-0 sm:w-64">
+        <div key={p.id} className="w-44 shrink-0 sm:w-48">
           <PlayerCard p={p} rank={i + 1} valueLabel={valueLabel} />
         </div>
       ))}
@@ -728,6 +743,65 @@ function BestStrikers() {
 /* ════════════════════════════════════════
    MVP LEADERBOARD
 ════════════════════════════════════════ */
+/* ── Ranked-row list for MVP leaderboard (A2) ── */
+function MvpRankedList({ players, loading }: { players: PlayerStat[]; loading: boolean }) {
+  if (loading) return (
+    <div className="space-y-2">
+      {[0,1,2,3,4].map((i) => <div key={i} className="h-16 animate-pulse rounded-xl bg-secondary" />)}
+    </div>
+  );
+  if (!players.length) return (
+    <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+      No MOTM awards yet.
+    </div>
+  );
+  const rankRingColors = ["ring-yellow-400", "ring-slate-400", "ring-amber-600"];
+  return (
+    <div className="space-y-2">
+      {players.map((p, i) => {
+        const rank = i + 1;
+        const isTop3 = rank <= 3;
+        const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : null;
+        return (
+          <div
+            key={p.id}
+            className="flex items-center gap-4 rounded-2xl border border-border bg-card/60 backdrop-blur-sm p-3 shadow-sm transition hover:shadow-md hover:-translate-y-0.5"
+          >
+            {/* Avatar with rank badge overlay */}
+            <div className="relative shrink-0">
+              {p.avatar ? (
+                <img src={p.avatar} alt={p.name} className={`h-14 w-14 rounded-full object-cover ${isTop3 ? `ring-2 ring-offset-2 ring-offset-card ${rankRingColors[rank - 1]}` : "border border-border"}`} />
+              ) : (
+                <div
+                  className={`h-14 w-14 grid place-items-center rounded-full font-display text-xl text-white ${isTop3 ? `ring-2 ring-offset-2 ring-offset-card ${rankRingColors[rank - 1]}` : ""}`}
+                  style={{ background: colorForPlayer(p.name) }}
+                >
+                  {p.name.slice(0, 1).toUpperCase()}
+                </div>
+              )}
+              <div className="absolute -bottom-1 -right-1 grid h-6 w-6 place-items-center rounded-full bg-card border border-border text-xs font-bold shadow-sm">
+                {medal ?? rank}
+              </div>
+            </div>
+
+            {/* Name + stats */}
+            <div className="min-w-0 flex-1">
+              <div className="font-display text-base truncate">{p.name}</div>
+              <div className="text-xs text-muted-foreground truncate">{p.team}</div>
+            </div>
+
+            {/* MOTM count */}
+            <div className="text-right shrink-0">
+              <div className="font-display text-2xl tabular-nums text-primary leading-none">{p.value}</div>
+              <div className="text-[9px] uppercase tracking-wider text-muted-foreground mt-0.5">MOTM</div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function MVPLeaderboard() {
   const [players, setPlayers] = useState<PlayerStat[]>([]);
   const [loading, setLoading] = useState(true);
@@ -776,7 +850,7 @@ function MVPLeaderboard() {
   return (
     <section>
       <SectionHeader title="MVP Leaderboard" sub="Most Player of the Match awards" icon="🏆" />
-      <PlayerSlider players={players} valueLabel="MOTM" loading={loading} />
+      <MvpRankedList players={players} loading={loading} />
     </section>
   );
 }
@@ -787,11 +861,53 @@ function MVPLeaderboard() {
 function RecentPerformances() {
   const [perfs, setPerfs] = useState<RecentPerf[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isFallback, setIsFallback] = useState(false);
+  const [activeIdx, setActiveIdx] = useState(0);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const buildPerfs = async (matches: any[]) => {
+    const results: RecentPerf[] = [];
+    for (const m of matches) {
+      const matchLabel = `${m.team_a?.name ?? "Team A"} vs ${m.team_b?.name ?? "Team B"}`;
+      const date = new Date(m.completed_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+
+      if (m.motm_player_id) {
+        const { data: mem } = await supabase.from("team_members")
+          .select("id, player_name, profiles(avatar_url)").eq("id", m.motm_player_id).maybeSingle();
+        if (mem) {
+          const member = mem as any;
+          results.push({ id: `motm-${m.id}`, matchLabel, date, playerName: member.player_name, avatar: member.profiles?.avatar_url ?? null, line: `🏆 Player of the Match in ${matchLabel}`, type: "motm" });
+        }
+      }
+
+      const { data: inningsRows } = await supabase.from("innings").select("id").eq("match_id", m.id);
+      const inningsIds = (inningsRows ?? []).map((i: { id: string }) => i.id);
+      const { data: balls } = await supabase.from("balls")
+        .select("batter_id, batter_name, runs, extra_type, team_members!balls_batter_id_fkey(player_name, profiles(avatar_url))")
+        .in("innings_id", inningsIds).not("batter_id", "is", null);
+
+      const batMap = new Map<string, any>();
+      (balls as any[] ?? []).forEach((row: any) => {
+        if (!row.batter_id) return;
+        const isBat = row.extra_type !== "wide" && row.extra_type !== "bye" && row.extra_type !== "legbye";
+        if (!isBat) return;
+        const r = row.extra_type === "noball" ? row.runs - 1 : row.runs;
+        if (!batMap.has(row.batter_id)) batMap.set(row.batter_id, { name: row.team_members?.player_name ?? row.batter_name ?? "—", avatar: row.team_members?.profiles?.avatar_url ?? null, runs: 0 });
+        batMap.get(row.batter_id).runs += r;
+      });
+
+      const topBat = [...batMap.entries()].sort((a, b) => b[1].runs - a[1].runs)[0];
+      if (topBat && topBat[1].runs >= 30) {
+        results.push({ id: `bat-${m.id}-${topBat[0]}`, matchLabel, date, playerName: topBat[1].name, avatar: topBat[1].avatar, line: `🏏 ${topBat[1].runs} runs in ${matchLabel}`, type: "bat" });
+      }
+    }
+    return results.slice(0, 12);
+  };
 
   useEffect(() => {
     (async () => {
       const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const { data: matches } = await supabase
+      const { data: recent } = await supabase
         .from("matches")
         .select("id, completed_at, result_text, team_a:teams!matches_team_a_id_fkey(name), team_b:teams!matches_team_b_id_fkey(name), motm_player_id")
         .eq("status", "completed")
@@ -799,86 +915,96 @@ function RecentPerformances() {
         .order("completed_at", { ascending: false })
         .limit(10);
 
-      if (!matches?.length) { setLoading(false); return; }
-      const results: RecentPerf[] = [];
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      for (const m of matches as any[]) {
-        const matchLabel = `${m.team_a?.name ?? "Team A"} vs ${m.team_b?.name ?? "Team B"}`;
-        const date = new Date(m.completed_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
-
-        if (m.motm_player_id) {
-          const { data: mem } = await supabase.from("team_members")
-            .select("id, player_name, profiles(avatar_url)").eq("id", m.motm_player_id).maybeSingle();
-          if (mem) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const member = mem as any;
-            results.push({ id: `motm-${m.id}`, matchLabel, date, playerName: member.player_name, avatar: member.profiles?.avatar_url ?? null, line: `🏆 Player of the Match in ${matchLabel}`, type: "motm" });
-          }
-        }
-
-        const { data: inningsRows } = await supabase.from("innings").select("id").eq("match_id", m.id);
-        const inningsIds = (inningsRows ?? []).map((i: { id: string }) => i.id);
-        const { data: balls } = await supabase.from("balls")
-          .select("batter_id, batter_name, runs, extra_type, team_members!balls_batter_id_fkey(player_name, profiles(avatar_url))")
-          .in("innings_id", inningsIds).not("batter_id", "is", null);
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const batMap = new Map<string, any>();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (balls as any[] ?? []).forEach((row: any) => {
-          if (!row.batter_id) return;
-          const isBat = row.extra_type !== "wide" && row.extra_type !== "bye" && row.extra_type !== "legbye";
-          if (!isBat) return;
-          const r = row.extra_type === "noball" ? row.runs - 1 : row.runs;
-          if (!batMap.has(row.batter_id)) batMap.set(row.batter_id, { name: row.team_members?.player_name ?? row.batter_name ?? "—", avatar: row.team_members?.profiles?.avatar_url ?? null, runs: 0 });
-          batMap.get(row.batter_id).runs += r;
-        });
-
-        const topBat = [...batMap.entries()].sort((a, b) => b[1].runs - a[1].runs)[0];
-        if (topBat && topBat[1].runs >= 30) {
-          results.push({ id: `bat-${m.id}-${topBat[0]}`, matchLabel, date, playerName: topBat[1].name, avatar: topBat[1].avatar, line: `🏏 ${topBat[1].runs} runs in ${matchLabel}`, type: "bat" });
+      // C1: fallback to most recent performance regardless of date if nothing in last 24h
+      if (recent?.length) {
+        const results = await buildPerfs(recent as any[]);
+        if (results.length) {
+          setPerfs(results);
+          setIsFallback(false);
+          setLoading(false);
+          return;
         }
       }
 
-      setPerfs(results.slice(0, 12));
+      const { data: fallback } = await supabase
+        .from("matches")
+        .select("id, completed_at, result_text, team_a:teams!matches_team_a_id_fkey(name), team_b:teams!matches_team_b_id_fkey(name), motm_player_id")
+        .eq("status", "completed")
+        .order("completed_at", { ascending: false })
+        .limit(5);
+
+      if (fallback?.length) {
+        const results = await buildPerfs(fallback as any[]);
+        setPerfs(results);
+        setIsFallback(true);
+      }
       setLoading(false);
     })();
   }, []);
 
+  // C2: scroll-snap dot indicator tracking
+  const onScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const cardWidth = 256 + 16; // w-64 + gap-4
+    setActiveIdx(Math.round(el.scrollLeft / cardWidth));
+  };
+
   return (
     <section>
-      <SectionHeader title="Recent Performances" sub="Standout contributions from the last 24 hours" icon="⚡" />
+      <SectionHeader
+        title={isFallback ? "Last Performance" : "Recent Performances"}
+        sub={isFallback ? "Most recent standout contribution" : "Standout contributions from the last 24 hours"}
+        icon="⚡"
+      />
       {loading ? (
         <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-none -mx-4 px-4 sm:-mx-6 sm:px-6">
           {[0,1,2,3,4,5].map((i) => <div key={i} className="h-24 w-64 shrink-0 animate-pulse rounded-2xl border border-border bg-card" />)}
         </div>
       ) : !perfs.length ? (
-        <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">No recent performances in the last 24 hours.</div>
+        <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">No performances yet — play a match to see standout moments here.</div>
       ) : (
-        <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-none -mx-4 px-4 sm:-mx-6 sm:px-6">
-          {perfs.map((p) => (
-            <div key={p.id} className={`flex w-64 shrink-0 items-center gap-3 rounded-2xl border px-4 py-4 shadow-elevate ${p.type === "motm" ? "border-yellow-400/30 bg-yellow-400/5" : "border-border bg-card"}`}>
-              {p.avatar ? (
-                <img src={p.avatar} alt={p.playerName} className="h-12 w-12 shrink-0 rounded-2xl object-cover border border-border shadow-sm" />
-              ) : (
-                <div className="h-12 w-12 shrink-0 grid place-items-center rounded-2xl bg-primary/15 font-display text-lg text-primary border border-primary/20">
-                  {p.playerName.slice(0, 1).toUpperCase()}
+        <div className="relative">
+          {/* Fade edges to hint scrollability */}
+          <div className="pointer-events-none absolute left-0 top-0 bottom-3 w-8 bg-gradient-to-r from-background to-transparent z-10 sm:hidden" />
+          <div className="pointer-events-none absolute right-0 top-0 bottom-3 w-8 bg-gradient-to-l from-background to-transparent z-10 sm:hidden" />
+
+          <div
+            ref={scrollRef}
+            onScroll={onScroll}
+            className="flex gap-4 overflow-x-auto pb-3 scrollbar-none snap-x snap-mandatory -mx-4 px-4 sm:-mx-6 sm:px-6"
+          >
+            {perfs.map((p) => (
+              <div key={p.id} className={`flex w-64 shrink-0 snap-start items-center gap-3 rounded-2xl border px-4 py-4 shadow-elevate ${p.type === "motm" ? "border-yellow-400/30 bg-yellow-400/5" : "border-border bg-card"}`}>
+                {p.avatar ? (
+                  <img src={p.avatar} alt={p.playerName} className="h-12 w-12 shrink-0 rounded-2xl object-cover border border-border shadow-sm" />
+                ) : (
+                  <div className="h-12 w-12 shrink-0 grid place-items-center rounded-2xl bg-primary/15 font-display text-lg text-primary border border-primary/20">
+                    {p.playerName.slice(0, 1).toUpperCase()}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-semibold text-sm">{p.playerName}</div>
+                  <div className="truncate text-xs text-muted-foreground mt-0.5">{p.line}</div>
+                  <div className="text-[10px] text-muted-foreground mt-1">{p.date}</div>
                 </div>
-              )}
-              <div className="min-w-0 flex-1">
-                <div className="truncate font-semibold text-sm">{p.playerName}</div>
-                <div className="truncate text-xs text-muted-foreground mt-0.5">{p.line}</div>
-                <div className="text-[10px] text-muted-foreground mt-1">{p.date}</div>
               </div>
+            ))}
+          </div>
+
+          {/* Dot indicators */}
+          {perfs.length > 1 && (
+            <div className="mt-2 flex justify-center gap-1.5">
+              {perfs.map((_, i) => (
+                <span key={i} className={`h-1.5 rounded-full transition-all ${i === activeIdx ? "w-5 bg-primary" : "w-1.5 bg-border"}`} />
+              ))}
             </div>
-          ))}
+          )}
         </div>
       )}
     </section>
   );
 }
-
 function ArrowRight() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
