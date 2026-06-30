@@ -5,19 +5,21 @@ import QRCode from "qrcode";
 import { Navbar } from "@/components/layout/Navbar";
 import { supabase } from "@/integrations/supabase/client";
 import { FollowButton } from "@/components/FollowButton";
+import { TeamLogoUpload } from "@/components/TeamLogoUpload";
 import { ArrowLeft, Copy, Link2, Phone, QrCode, Trash2, UserPlus } from "lucide-react";
- 
- 
+
+
 export const Route = createFileRoute("/_authenticated/teams/$teamId")({
   component: TeamDetail,
 });
- 
+
 type Team = {
   id: string;
   name: string;
   short_name: string | null;
   city: string | null;
   jersey_color: string | null;
+  logo_url: string | null;
   created_by: string;
   join_code: string | null;
 };
@@ -29,10 +31,10 @@ type Member = {
   batting_style: string | null;
   bowling_style: string | null;
 };
- 
+
 const ROLES = ["Batter", "Bowler", "All-rounder", "WK"];
 type Tab = "phone" | "link" | "qr";
- 
+
 function TeamDetail() {
   const { teamId } = Route.useParams();
   const navigate = useNavigate();
@@ -40,7 +42,7 @@ function TeamDetail() {
   const [members, setMembers] = useState<Member[]>([]);
   const [me, setMe] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
- 
+
   const [tab, setTab] = useState<Tab>("phone");
   // by phone
   const [phone, setPhone] = useState("");
@@ -49,25 +51,25 @@ function TeamDetail() {
   const [adding, setAdding] = useState(false);
   // qr
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
- 
+
   const inviteUrl = useMemo(() => {
     if (typeof window === "undefined" || !team?.join_code) return "";
     return `${window.location.origin}/join-team?code=${team.join_code}`;
   }, [team?.join_code]);
- 
+
   useEffect(() => {
     if (tab !== "qr" || !inviteUrl) return;
     QRCode.toDataURL(inviteUrl, { width: 320, margin: 1, color: { dark: "#000000", light: "#ffffff" } })
       .then(setQrDataUrl)
       .catch(() => setQrDataUrl(null));
   }, [tab, inviteUrl]);
- 
+
   const load = async () => {
     const { data: u } = await supabase.auth.getUser();
     setMe(u.user?.id ?? null);
     const { data: t } = await supabase
       .from("teams")
-      .select("id, name, short_name, city, jersey_color, created_by, join_code")
+      .select("id, name, short_name, city, jersey_color, logo_url, created_by, join_code")
       .eq("id", teamId)
       .maybeSingle();
     setTeam((t as Team) ?? null);
@@ -79,12 +81,12 @@ function TeamDetail() {
     setMembers((m as Member[]) ?? []);
     setLoading(false);
   };
- 
+
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teamId]);
- 
+
   const addByPhone = async (e: React.FormEvent) => {
     e.preventDefault();
     const clean = phone.replace(/[^0-9+]/g, "");
@@ -121,13 +123,13 @@ function TeamDetail() {
     toast.success("Player added 🏏");
     load();
   };
- 
+
   const removeMember = async (id: string) => {
     const { error } = await supabase.from("team_members").delete().eq("id", id);
     if (error) return toast.error(error.message);
     setMembers((prev) => prev.filter((x) => x.id !== id));
   };
- 
+
   const deleteTeam = async () => {
     if (!confirm("Delete this team and all its players?")) return;
     const { error } = await supabase.from("teams").delete().eq("id", teamId);
@@ -135,12 +137,12 @@ function TeamDetail() {
     toast.success("Team deleted");
     navigate({ to: "/teams" });
   };
- 
+
   const copy = (text: string, label = "Copied") => {
     navigator.clipboard.writeText(text);
     toast.success(label);
   };
- 
+
   const shareLink = async () => {
     if (!inviteUrl) return;
     if (navigator.share) {
@@ -157,7 +159,7 @@ function TeamDetail() {
     }
     copy(inviteUrl, "Invite link copied");
   };
- 
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
@@ -168,7 +170,7 @@ function TeamDetail() {
       </div>
     );
   }
- 
+
   if (!team) {
     return (
       <div className="min-h-screen bg-background">
@@ -182,9 +184,9 @@ function TeamDetail() {
       </div>
     );
   }
- 
+
   const isOwner = me === team.created_by;
- 
+
   return (
     <div className="min-h-screen bg-background pb-24 md:pb-0">
       <Navbar />
@@ -195,16 +197,31 @@ function TeamDetail() {
         >
           <ArrowLeft className="h-4 w-4" /> All teams
         </Link>
- 
+
         {/* Team header — stacks cleanly on mobile */}
         <div className="mt-4 rounded-xl border border-border bg-card p-5 shadow-elevate">
           <div className="flex items-start gap-4">
-            <span
-              className="grid h-14 w-14 shrink-0 place-items-center rounded-xl font-display text-xl text-white sm:h-16 sm:w-16 sm:text-2xl"
-              style={{ backgroundColor: team.jersey_color || "#003527" }}
-            >
-              {(team.short_name || team.name).slice(0, 3).toUpperCase()}
-            </span>
+            {isOwner ? (
+              <TeamLogoUpload
+                teamId={team.id}
+                logoUrl={team.logo_url}
+                onUploaded={(url) => setTeam((t) => t ? { ...t, logo_url: url } : t)}
+                size="md"
+              />
+            ) : team.logo_url ? (
+              <img
+                src={team.logo_url}
+                alt={team.name}
+                className="h-14 w-14 shrink-0 rounded-xl object-cover border border-border sm:h-16 sm:w-16"
+              />
+            ) : (
+              <span
+                className="grid h-14 w-14 shrink-0 place-items-center rounded-xl font-display text-xl text-white sm:h-16 sm:w-16 sm:text-2xl"
+                style={{ backgroundColor: team.jersey_color || "#003527" }}
+              >
+                {(team.short_name || team.name).slice(0, 3).toUpperCase()}
+              </span>
+            )}
             <div className="min-w-0 flex-1">
               <h1 className="truncate font-display text-2xl tracking-tight text-primary sm:text-4xl">{team.name}</h1>
               <div className="mt-0.5 text-sm text-muted-foreground">
@@ -225,10 +242,10 @@ function TeamDetail() {
             </div>
           </div>
         </div>
- 
+
         <section className="mt-8">
           <h2 className="font-display text-2xl tracking-tight">Squad</h2>
- 
+
           {members.length === 0 ? (
             <div className="mt-3 rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
               No players yet. {isOwner && "Invite your first below."}
@@ -257,7 +274,7 @@ function TeamDetail() {
               ))}
             </ul>
           )}
- 
+
           {isOwner && (
             <div className="mt-6 rounded-xl border border-border bg-card p-5 shadow-elevate">
               <div className="flex items-center gap-2 text-sm font-medium">
@@ -266,7 +283,7 @@ function TeamDetail() {
               <p className="mt-1 text-xs text-muted-foreground">
                 Players can only join by phone, invite link, or QR code.
               </p>
- 
+
               <div className="mt-4 flex gap-1 rounded-lg border border-border bg-background p-1">
                 <TabBtn active={tab === "phone"} onClick={() => setTab("phone")} icon={<Phone className="h-3.5 w-3.5" />}>
                   Phone
@@ -278,7 +295,7 @@ function TeamDetail() {
                   QR
                 </TabBtn>
               </div>
- 
+
               {tab === "phone" && (
                 <form onSubmit={addByPhone} className="mt-4 space-y-3">
                   <p className="text-xs text-muted-foreground">
@@ -322,7 +339,7 @@ function TeamDetail() {
                   </p>
                 </form>
               )}
- 
+
               {tab === "link" && (
                 <div className="mt-4 space-y-3">
                   <p className="text-xs text-muted-foreground">
@@ -351,7 +368,7 @@ function TeamDetail() {
                   </div>
                 </div>
               )}
- 
+
               {tab === "qr" && (
                 <div className="mt-4 flex flex-col items-center gap-3">
                   <div className="rounded-xl bg-white p-3">
@@ -385,7 +402,7 @@ function TeamDetail() {
     </div>
   );
 }
- 
+
 function TabBtn({
   active,
   onClick,

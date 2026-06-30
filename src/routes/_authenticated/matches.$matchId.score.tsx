@@ -76,10 +76,12 @@ function PlayerAvatar({ member, size = "md" }: { member: Member | null | undefin
 
 /* ── Player select row (shows photo + name) ── */
 function PlayerSelectRow({
-  label, value, members, onChange, stat, accent,
+  label, value, members, onChange, stat, accent, disabledMap, note,
 }: {
   label: string; value: string | null; members: Member[];
   onChange: (v: string | null) => void; stat?: string; accent?: boolean;
+  disabledMap?: Map<string, string>; // memberId -> reason
+  note?: string;
 }) {
   const selected = members.find((m) => m.id === value) ?? null;
   const [open, setOpen] = useState(false);
@@ -105,6 +107,11 @@ function PlayerSelectRow({
 
       {open && (
         <div className="absolute left-0 top-full z-50 mt-1 w-full overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
+          {note && (
+            <div className="border-b border-border bg-amber-400/10 px-3 py-1.5 text-[10px] text-amber-600 dark:text-amber-400">
+              {note}
+            </div>
+          )}
           <div className="max-h-48 overflow-y-auto py-1">
             <button
               className="flex w-full items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:bg-secondary"
@@ -115,17 +122,26 @@ function PlayerSelectRow({
               </div>
               None
             </button>
-            {members.map((m) => (
-              <button
-                key={m.id}
-                onClick={() => { onChange(m.id); setOpen(false); }}
-                className={`flex w-full items-center gap-2 px-3 py-2 text-sm transition hover:bg-secondary ${value === m.id ? "bg-primary/10 text-primary" : "text-foreground"}`}
-              >
-                <PlayerAvatar member={m} size="sm" />
-                <span className="flex-1 truncate font-medium">{m.player_name}</span>
-                {m.jersey_number != null && <span className="font-mono text-[10px] text-muted-foreground">#{m.jersey_number}</span>}
-              </button>
-            ))}
+            {members.map((m) => {
+              const disabledReason = disabledMap?.get(m.id);
+              return (
+                <button
+                  key={m.id}
+                  disabled={!!disabledReason}
+                  onClick={() => { if (!disabledReason) { onChange(m.id); setOpen(false); } }}
+                  className={`flex w-full items-center gap-2 px-3 py-2 text-sm transition ${
+                    disabledReason ? "opacity-40 cursor-not-allowed" : "hover:bg-secondary"
+                  } ${value === m.id ? "bg-primary/10 text-primary" : "text-foreground"}`}
+                >
+                  <PlayerAvatar member={m} size="sm" />
+                  <span className="flex-1 truncate font-medium text-left">
+                    {m.player_name}
+                    {disabledReason && <span className="block text-[10px] text-destructive">{disabledReason}</span>}
+                  </span>
+                  {m.jersey_number != null && <span className="font-mono text-[10px] text-muted-foreground">#{m.jersey_number}</span>}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
@@ -284,6 +300,31 @@ function ScorePage() {
   const [busy, setBusy] = useState(false);
   const [breakDismissed, setBreakDismissed] = useState(false);
   const [wicketPending, setWicketPending] = useState<{ runs: number; extra: ExtraKind | null } | null>(null);
+  const [retiredOutOpen, setRetiredOutOpen] = useState(false);
+
+  // Bowler rule helpers
+  const bowlerOversCount = useMemo(() => {
+    const map = new Map<string, number>();
+    const overSets = new Map<string, Set<number>>();
+    balls.forEach((b) => {
+      if (!b.bowler_id) return;
+      const set = overSets.get(b.bowler_id) ?? new Set<number>();
+      set.add(b.over_number);
+      overSets.set(b.bowler_id, set);
+    });
+    overSets.forEach((set, id) => map.set(id, set.size));
+    return map;
+  }, [balls]);
+
+  const previousOverBowlerId = useMemo(() => {
+    if (!innings || innings.balls === 0) return null;
+    const lastCompletedOver = Math.floor(innings.balls / 6) - 1;
+    if (lastCompletedOver < 0) return null;
+    const ballsInThatOver = balls.filter((b) => b.over_number === lastCompletedOver);
+    return ballsInThatOver[0]?.bowler_id ?? null;
+  }, [balls, innings]);
+
+  const maxOversPerBowler = match ? Math.ceil(match.overs / 5) : 99;
 
   const load = useCallback(async () => {
     const { data: m } = await supabase
@@ -588,6 +629,15 @@ function ScorePage() {
 
   return (
     <div className="min-h-screen bg-background pb-12">
+      {retiredOutOpen && innings && (
+        <RetiredOutModal
+          battingSquad={battingSquad}
+          striker={innings.striker_id}
+          nonStriker={innings.non_striker_id}
+          onConfirm={confirmRetiredOut}
+          onCancel={() => setRetiredOutOpen(false)}
+        />
+      )}
       {wicketPending && (
         <WicketModal
           battingSquad={battingSquad} bowlingSquad={bowlingSquad}
@@ -710,6 +760,19 @@ function ScorePage() {
                 members={bowlingSquad}
                 onChange={(v) => setPlayer("bowler_id", v)}
                 stat={bowlerStats ? `${bowlerStats.overs}-${bowlerStats.runs}-${bowlerStats.wkts}` : undefined}
+                disabledMap={(() => {
+                  const map = new Map<string, string>();
+                  bowlingSquad.forEach((m) => {
+                    const oversBowled = bowlerOversCount.get(m.id) ?? 0;
+                    if (oversBowled >= maxOversPerBowler) {
+                      map.set(m.id, `At max overs (${oversBowled}/${maxOversPerBowler})`);
+                    } else if (previousOverBowlerId === m.id) {
+                      map.set(m.id, "Bowled last over");
+                    }
+                  });
+                  return map;
+                })()}
+                note={previousOverBowlerId ? `Previous over: ${bowlingSquad.find(m => m.id === previousOverBowlerId)?.player_name ?? "—"} — cannot bowl again` : undefined}
               />
             </div>
           </div>
@@ -808,9 +871,9 @@ function ScorePage() {
         </div>
 
         <button disabled={busy || !innings.striker_id}
-          onClick={() => { setBusy(true); setWicketPending({ runs: 0, extra: null }); }}
+          onClick={() => setRetiredOutOpen(true)}
           className="mt-2 w-full h-10 rounded-xl border border-amber-400/30 bg-amber-400/8 text-sm font-semibold text-amber-600 dark:text-amber-400 transition active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 hover:border-amber-400/50">
-          🩹 Retired Hurt
+          🩹 Retired Out
         </button>
 
         {/* New batter prompt */}

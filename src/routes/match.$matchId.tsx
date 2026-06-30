@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { FollowButton } from "@/components/FollowButton";
 import { Radio, Star, Zap, Loader2 } from "lucide-react";
 import { VideoStreamEmbed } from "@/components/VideoStreamEmbed";
+import { PlayerAvatarChip, RoleBadge } from "@/components/PlayerAvatarChip";
 
 export const Route = createFileRoute("/match/$matchId")({
   ssr: false,
@@ -33,7 +34,11 @@ type Ball = {
   is_wicket: boolean; wicket_type: string | null;
   batter_id: string | null; non_striker_id: string | null; bowler_id: string | null; dismissed_player_id: string | null;
 };
-type Member = { id: string; player_name: string; team_id: string; jersey_number: number | null };
+type Member = {
+  id: string; player_name: string; team_id: string; jersey_number: number | null;
+  avatar_url?: string | null; role?: string | null;
+  is_captain?: boolean; is_wicketkeeper?: boolean;
+};
 type MotmProfile = { id: string; full_name: string | null; avatar_url: string | null };
 type Tab = "info" | "live" | "scorecard" | "commentary" | "summary" | "squads";
 
@@ -116,9 +121,14 @@ function PublicScorecard() {
     }
 
     const { data: ms } = await supabase.from("team_members")
-      .select("id, player_name, team_id, jersey_number")
+      .select("id, player_name, team_id, jersey_number, role, profiles(avatar_url)")
       .in("team_id", [mm.team_a.id, mm.team_b.id]);
-    const memList = (ms as Member[]) ?? [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const memList: Member[] = ((ms ?? []) as any[]).map((p) => ({
+      id: p.id, player_name: p.player_name, team_id: p.team_id,
+      jersey_number: p.jersey_number, role: p.role ?? null,
+      avatar_url: p.profiles?.avatar_url ?? null,
+    }));
     const map: Record<string, Member> = {};
     memList.forEach((p) => (map[p.id] = p));
     setPlayers(map);
@@ -857,17 +867,33 @@ function SquadsTab({ match, squad }: { match: Match; squad: { a: Member[]; b: Me
             <div className="font-display text-base text-white">{team.name}</div>
             <FollowButton entityType="team" entityId={team.id} size="sm" />
           </div>
-          <ul className="divide-y divide-border bg-card">
-            {players.length === 0
-              ? <li className="px-4 py-5 text-center text-xs text-muted-foreground">No players.</li>
-              : players.map((p, i) => (
-                <li key={p.id} className={`flex items-center gap-3 px-4 py-2.5 ${i % 2 === 1 ? "bg-muted/20" : ""}`}>
-                  <span className="grid h-7 w-7 place-items-center rounded-full bg-secondary font-mono text-[11px]">{p.jersey_number ?? "—"}</span>
-                  <Link to="/players/$playerId" params={{ playerId: p.id }} className="flex-1 truncate text-sm font-medium hover:text-primary">{p.player_name}</Link>
-                  <FollowButton entityType="player" entityId={p.id} size="sm" />
-                </li>
-              ))}
-          </ul>
+          <div className="space-y-2 bg-background p-3">
+            {players.length === 0 ? (
+              <p className="px-2 py-5 text-center text-xs text-muted-foreground">No players.</p>
+            ) : players.map((p) => (
+              <Link
+                key={p.id}
+                to="/players/$playerId"
+                params={{ playerId: p.id }}
+                className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 shadow-sm transition hover:border-primary/30 hover:shadow-md"
+              >
+                <PlayerAvatarChip name={p.player_name} avatarUrl={p.avatar_url ?? null} size="md" />
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold text-sm truncate">{p.player_name}</div>
+                  <div className="mt-1 flex items-center gap-1.5">
+                    <RoleBadge role={p.role ?? null} />
+                    {p.is_captain && (
+                      <span className="inline-flex items-center rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold text-primary">C</span>
+                    )}
+                    {p.is_wicketkeeper && (
+                      <span className="inline-flex items-center rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-400">WK</span>
+                    )}
+                  </div>
+                </div>
+                <FollowButton entityType="player" entityId={p.id} size="sm" />
+              </Link>
+            ))}
+          </div>
         </div>
       ))}
     </div>
