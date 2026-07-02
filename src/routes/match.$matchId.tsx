@@ -349,9 +349,9 @@ function LiveTab({ match, currentInn, balls, players }: {
 type BatLine = { id: string; name: string; runs: number; balls: number; fours: number; sixes: number; out: boolean; outDesc: string };
 type FowEntry = { wicket: number; score: number; over: string; batsmanName: string; batsmanId: string | null };
 type Partnership = { bat1: string; bat1Id: string | null; bat2: string; bat2Id: string | null; runs: number; balls: number };
-type BowlLine = { id: string; name: string; legal: number; runs: number; wkts: number; maidens: number };
+type BowlLine = { id: string; name: string; legal: number; runs: number; wkts: number; maidens: number; nb: number; wd: number };
 
-function buildInningsTables(innBalls: Ball[], players: Record<string, Member>) {
+function buildInningsTables(innBalls: Ball[], players: Record<string, Member>, matchOvers: number) {
   const batMap = new Map<string, BatLine>();
   const order: string[] = [];
   const ensureBat = (id: string) => {
@@ -438,10 +438,12 @@ function buildInningsTables(innBalls: Ball[], players: Record<string, Member>) {
   const perOver = new Map<string, Map<number, { runs: number; legal: number }>>();
   innBalls.forEach((b) => {
     if (!b.bowler_id) return;
-    const row = bowlMap.get(b.bowler_id) ?? { id: b.bowler_id, name: players[b.bowler_id]?.player_name ?? "—", legal: 0, runs: 0, wkts: 0, maidens: 0 };
+    const row = bowlMap.get(b.bowler_id) ?? { id: b.bowler_id, name: players[b.bowler_id]?.player_name ?? "—", legal: 0, runs: 0, wkts: 0, maidens: 0, nb: 0, wd: 0 };
     row.runs += b.runs;
     if (b.extra_type === "wide" || b.extra_type === "noball") row.runs += 1;
     if (b.extra_type !== "wide" && b.extra_type !== "noball") row.legal++;
+    if (b.extra_type === "noball") row.nb++;
+    if (b.extra_type === "wide") row.wd++;
     if (b.is_wicket && b.wicket_type !== "runout" && b.wicket_type !== "retired_hurt") row.wkts++;
     bowlMap.set(b.bowler_id, row);
     const ovMap = perOver.get(b.bowler_id) ?? new Map();
@@ -457,19 +459,63 @@ function buildInningsTables(innBalls: Ball[], players: Record<string, Member>) {
     const row = bowlMap.get(bid);
     if (row) row.maidens = maidens;
   });
-  return { batting: order.map((id) => batMap.get(id)!), bowling: [...bowlMap.values()], fow, partnerships };
+
+  // Extras breakdown
+  const extras = { byes: 0, legbyes: 0, wides: 0, noballs: 0 };
+  innBalls.forEach((b) => {
+    if (b.extra_type === "bye") extras.byes += b.runs;
+    else if (b.extra_type === "legbye") extras.legbyes += b.runs;
+    else if (b.extra_type === "wide") extras.wides += b.runs + 1;
+    else if (b.extra_type === "noball") extras.noballs += 1;
+  });
+
+  // Powerplay (first 6 overs, or fewer for short-format matches)
+  const ppOvers = Math.min(6, matchOvers);
+  let ppRuns = 0;
+  innBalls.forEach((b) => {
+    if (b.over_number < ppOvers) ppRuns += b.runs + (b.extra_type === "wide" || b.extra_type === "noball" ? 1 : 0);
+  });
+
+  return { batting: order.map((id) => batMap.get(id)!), bowling: [...bowlMap.values()], fow, partnerships, extras, ppOvers, ppRuns };
 }
 
 function ScorecardTab({ match, innings, balls, players }: { match: Match; innings: Innings[]; balls: Ball[]; players: Record<string, Member> }) {
+  const [selected, setSelected] = useState<string | null>(null);
   if (!innings.length || !balls.length) return <EmptyState msg="Scorecard appears once the match starts." />;
+
+  const orderedInnings = [...innings].sort((a, b) => b.innings_no - a.innings_no); // most recent first
+  const activeId = selected && innings.some((i) => i.id === selected) ? selected : orderedInnings[0]?.id;
+
   return (
-    <div className="space-y-5">
-      {innings.map((inn) => {
+    <div className="space-y-4">
+      {/* Innings toggle pills — only shown once there's more than one innings */}
+      {orderedInnings.length > 1 && (
+        <div className="flex flex-wrap gap-2">
+          {orderedInnings.map((inn) => {
+            const t = inn.batting_team_id === match.team_a.id ? match.team_a : match.team_b;
+            const isActive = inn.id === activeId;
+            return (
+              <button
+                key={inn.id}
+                onClick={() => setSelected(inn.id)}
+                className="rounded-full px-4 py-1.5 text-sm font-semibold transition"
+                style={isActive
+                  ? { background: CB.green, color: "#fff" }
+                  : { background: CB.tableHeader, color: CB.muted }}
+              >
+                {t.short_name || t.name} ({inn.innings_no === 1 ? "1st" : "2nd"} Inn)
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="space-y-5">
+        {orderedInnings.filter((inn) => inn.id === activeId).map((inn) => {
         const battingTeam = inn.batting_team_id === match.team_a.id ? match.team_a : match.team_b;
         const innBalls = balls.filter((b) => b.innings_id === inn.id);
-        const { batting, bowling, fow, partnerships } = buildInningsTables(innBalls, players);
+        const { batting, bowling, fow, partnerships, extras, ppOvers, ppRuns } = buildInningsTables(innBalls, players, match.overs);
         const overs = `${Math.floor(inn.balls / 6)}.${inn.balls % 6}`;
-        const headerColor = battingTeam.jersey_color || CB.green;
         const rr = inn.balls > 0 ? ((inn.runs / inn.balls) * 6).toFixed(2) : "0.00";
         return (
           <div key={inn.id} className="overflow-hidden rounded-xl border border-border bg-card">
@@ -499,12 +545,13 @@ function ScorecardTab({ match, innings, balls, players }: { match: Match; inning
                     <th className="py-2 px-2 text-center text-[11px] font-bold w-10" style={{ color: CB.green }}>B</th>
                     <th className="py-2 px-2 text-center text-[11px] font-bold w-10" style={{ color: CB.green }}>4s</th>
                     <th className="py-2 px-2 text-center text-[11px] font-bold w-10" style={{ color: CB.green }}>6s</th>
-                    <th className="py-2 pl-2 pr-4 text-right text-[11px] font-bold w-14" style={{ color: CB.green }}>SR</th>
+                    <th className="py-2 pl-2 pr-2 text-right text-[11px] font-bold w-14" style={{ color: CB.green }}>SR</th>
+                    <th className="w-6"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {batting.length === 0 ? (
-                    <tr><td colSpan={6} className="py-5 text-center text-xs text-muted-foreground">No batting yet</td></tr>
+                    <tr><td colSpan={7} className="py-5 text-center text-xs text-muted-foreground">No batting yet</td></tr>
                   ) : batting.map((r, i) => (
                     <tr key={r.id} style={{ background: i % 2 === 0 ? "#fff" : CB.rowAlt, borderBottom: `1px solid ${CB.border}` }}>
                       <td className="py-2.5 pl-4 pr-2">
@@ -518,9 +565,10 @@ function ScorecardTab({ match, innings, balls, players }: { match: Match; inning
                       <td className="py-2.5 px-2 text-center font-mono text-xs" style={{ color: CB.muted }}>{r.balls}</td>
                       <td className="py-2.5 px-2 text-center font-mono text-xs font-semibold" style={{ color: CB.green }}>{r.fours}</td>
                       <td className="py-2.5 px-2 text-center font-mono text-xs font-bold" style={{ color: CB.orange }}>{r.sixes}</td>
-                      <td className="py-2.5 pl-2 pr-4 text-right font-mono text-xs" style={{ color: CB.muted }}>
+                      <td className="py-2.5 pl-2 pr-2 text-right font-mono text-xs" style={{ color: CB.muted }}>
                         {r.balls > 0 ? ((r.runs / r.balls) * 100).toFixed(1) : "—"}
                       </td>
+                      <td className="pr-3 text-right text-xs" style={{ color: CB.muted }}>{r.id ? "›" : ""}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -528,8 +576,11 @@ function ScorecardTab({ match, innings, balls, players }: { match: Match; inning
             </div>
 
             {/* Extras + total */}
-            <div className="px-4 py-2 flex items-center justify-between text-xs" style={{ background: CB.tableHeader, borderTop: `1px solid ${CB.border}`, borderBottom: `1px solid ${CB.border}` }}>
-              <span style={{ color: CB.muted }}>Extras <b style={{ color: "#111" }}>{inn.extras}</b></span>
+            <div className="px-4 py-2 flex items-center justify-between text-xs flex-wrap gap-y-1" style={{ background: CB.tableHeader, borderTop: `1px solid ${CB.border}`, borderBottom: `1px solid ${CB.border}` }}>
+              <span style={{ color: CB.muted }}>
+                Extras <b style={{ color: "#111" }}>{inn.extras}</b>
+                <span className="ml-1">(b {extras.byes}, lb {extras.legbyes}, w {extras.wides}, nb {extras.noballs})</span>
+              </span>
               <span style={{ color: CB.muted }}>Total <b style={{ color: "#111" }}>{inn.runs}-{inn.wickets} ({overs} Ov)</b> · RR <b style={{ color: CB.green }}>{rr}</b></span>
             </div>
 
@@ -562,12 +613,15 @@ function ScorecardTab({ match, innings, balls, players }: { match: Match; inning
                     <th className="py-2 px-2 text-center text-[11px] font-bold w-10" style={{ color: CB.green }}>M</th>
                     <th className="py-2 px-2 text-center text-[11px] font-bold w-10" style={{ color: CB.green }}>R</th>
                     <th className="py-2 px-2 text-center text-[11px] font-bold w-10" style={{ color: CB.green }}>W</th>
-                    <th className="py-2 pl-2 pr-4 text-right text-[11px] font-bold w-14" style={{ color: CB.green }}>ECO</th>
+                    <th className="py-2 px-2 text-center text-[11px] font-bold w-10" style={{ color: CB.green }}>NB</th>
+                    <th className="py-2 px-2 text-center text-[11px] font-bold w-10" style={{ color: CB.green }}>WD</th>
+                    <th className="py-2 pl-2 pr-2 text-right text-[11px] font-bold w-14" style={{ color: CB.green }}>ECO</th>
+                    <th className="w-6"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {bowling.length === 0 ? (
-                    <tr><td colSpan={6} className="py-5 text-center text-xs text-muted-foreground">No bowling yet</td></tr>
+                    <tr><td colSpan={9} className="py-5 text-center text-xs text-muted-foreground">No bowling yet</td></tr>
                   ) : bowling.map((r, i) => (
                     <tr key={r.id} style={{ background: i % 2 === 0 ? "#fff" : CB.rowAlt, borderBottom: `1px solid ${CB.border}` }}>
                       <td className="py-2.5 pl-4 pr-2 font-semibold text-sm" style={{ color: "#111" }}><PlayerLink id={r.id} name={r.name} /></td>
@@ -575,27 +629,63 @@ function ScorecardTab({ match, innings, balls, players }: { match: Match; inning
                       <td className="py-2.5 px-2 text-center font-mono text-xs" style={{ color: CB.muted }}>{r.maidens}</td>
                       <td className="py-2.5 px-2 text-center font-mono text-xs" style={{ color: "#111" }}>{r.runs}</td>
                       <td className="py-2.5 px-2 text-center font-bold text-base" style={{ color: r.wkts > 0 ? CB.orangeText : "#111" }}>{r.wkts}</td>
-                      <td className="py-2.5 pl-2 pr-4 text-right font-mono text-xs" style={{ color: CB.muted }}>
+                      <td className="py-2.5 px-2 text-center font-mono text-xs" style={{ color: CB.muted }}>{r.nb}</td>
+                      <td className="py-2.5 px-2 text-center font-mono text-xs" style={{ color: CB.muted }}>{r.wd}</td>
+                      <td className="py-2.5 pl-2 pr-2 text-right font-mono text-xs" style={{ color: CB.muted }}>
                         {r.legal > 0 ? ((r.runs / r.legal) * 6).toFixed(2) : "—"}
                       </td>
+                      <td className="pr-3 text-right text-xs" style={{ color: CB.muted }}>›</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
 
-            {/* Fall of Wickets */}
+            {/* Fall of Wickets — table form */}
             {fow.length > 0 && (
-              <div className="px-4 py-3" style={{ borderTop: `1px solid ${CB.border}`, background: "#fff" }}>
-                <div className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: CB.green }}>Fall of Wickets</div>
-                <div className="flex flex-wrap gap-x-4 gap-y-1">
-                  {fow.map((f) => (
-                    <span key={f.wicket} className="text-xs text-foreground">
-                      <span className="font-semibold">{f.score}-{f.wicket}</span>
-                      <span className="text-muted-foreground ml-1">(<PlayerLink id={f.batsmanId} name={f.batsmanName} />, {f.over} Ov)</span>
-                    </span>
-                  ))}
-                </div>
+              <div style={{ borderTop: `1px solid ${CB.border}`, background: "#fff" }}>
+                <div className="px-4 py-2 text-[11px] font-bold uppercase tracking-wider" style={{ background: CB.tableHeader, color: CB.green }}>Fall of Wickets</div>
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr style={{ borderBottom: `1px solid ${CB.border}` }}>
+                      <th className="py-2 pl-4 pr-2 text-left text-[11px] font-semibold" style={{ color: CB.muted }}>Batter</th>
+                      <th className="py-2 px-2 text-center text-[11px] font-semibold" style={{ color: CB.muted }}>Score</th>
+                      <th className="py-2 pr-4 text-right text-[11px] font-semibold" style={{ color: CB.muted }}>Over</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {fow.map((f, i) => (
+                      <tr key={f.wicket} style={{ background: i % 2 === 0 ? "#fff" : CB.rowAlt, borderBottom: `1px solid ${CB.border}` }}>
+                        <td className="py-2 pl-4 pr-2 text-xs"><PlayerLink id={f.batsmanId} name={f.batsmanName} /></td>
+                        <td className="py-2 px-2 text-center text-xs font-semibold">{f.score}-{f.wicket}</td>
+                        <td className="py-2 pr-4 text-right text-xs font-mono" style={{ color: CB.muted }}>{f.over}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Powerplays */}
+            {ppOvers > 0 && innBalls.length > 0 && (
+              <div style={{ borderTop: `1px solid ${CB.border}`, background: "#fff" }}>
+                <div className="px-4 py-2 text-[11px] font-bold uppercase tracking-wider" style={{ background: CB.tableHeader, color: CB.green }}>Powerplays</div>
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr style={{ borderBottom: `1px solid ${CB.border}` }}>
+                      <th className="py-2 pl-4 pr-2 text-left text-[11px] font-semibold" style={{ color: CB.muted }}>Mandatory</th>
+                      <th className="py-2 px-2 text-center text-[11px] font-semibold" style={{ color: CB.muted }}>Overs</th>
+                      <th className="py-2 pr-4 text-right text-[11px] font-semibold" style={{ color: CB.muted }}>Runs</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td className="py-2 pl-4 pr-2 text-xs">Mandatory</td>
+                      <td className="py-2 px-2 text-center text-xs font-mono">0.1 - {ppOvers}</td>
+                      <td className="py-2 pr-4 text-right text-xs font-semibold">{ppRuns}</td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             )}
 
@@ -624,7 +714,8 @@ function ScorecardTab({ match, innings, balls, players }: { match: Match; inning
             )}
           </div>
         );
-      })}
+        })}
+      </div>
     </div>
   );
 }
@@ -803,7 +894,7 @@ function CommentaryTab({ innings, balls, players, match }: { innings: Innings[];
         const ascBalls = balls.filter((b) => b.innings_id === inn.id);
         if (!ascBalls.length) return null;
         const { overs, firstBowlerBall, firstBatterBall } = buildOverTimeline(ascBalls, players);
-        const { batting, bowling } = buildInningsTables(ascBalls, players);
+        const { batting, bowling } = buildInningsTables(ascBalls, players, match.overs);
         const isInningsOver = inn.wickets >= 10 || inn.balls >= match.overs * 6
           || innings.some((x) => x.innings_no > inn.innings_no) || match.status === "completed";
         const oversDesc = [...overs].reverse();
