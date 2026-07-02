@@ -60,7 +60,7 @@ function PostCard({ post }: { post: Post }) {
             })}
           </span>
         </div>
-        {post.caption && <p className="mt-1.5 text-sm leading-snug line-clamp-3">{post.caption}</p>}
+        {post.caption && <p className="mt-1.5 text-sm leading-snug whitespace-pre-wrap">{post.caption}</p>}
       </div>
     </div>
   );
