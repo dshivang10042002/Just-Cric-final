@@ -3,10 +3,22 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import {
-  Search, Menu, X, Home, Swords, Users, Trophy, Rss,
-  TrendingUp, BarChart3, LayoutDashboard, User as UserIcon, LogOut,
+  Search,
+  Menu,
+  X,
+  Home,
+  Swords,
+  Users,
+  Trophy,
+  Rss,
+  TrendingUp,
+  BarChart3,
+  LayoutDashboard,
+  User as UserIcon,
+  LogOut,
+  ShieldCheck,
 } from "lucide-react";
- 
+
 const NAV_LINKS = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/matches", label: "Matches", icon: Swords },
@@ -19,22 +31,42 @@ const NAV_LINKS = [
   { to: "/search", label: "Search", icon: Search },
   { to: "/profile", label: "Profile", icon: UserIcon },
 ] as const;
- 
+
 export function Navbar() {
   const [user, setUser] = useState<User | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const menuRef = useRef<HTMLDivElement>(null);
- 
+
+  useEffect(() => {
+    if (!user) {
+      setIsAdmin(false);
+      return;
+    }
+    let cancelled = false;
+    supabase
+      .from("profiles")
+      .select("is_admin")
+      .eq("id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setIsAdmin(!!(data as { is_admin?: boolean } | null)?.is_admin);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
   useEffect(() => {
     // getSession is more reliable right after OAuth redirect
     supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null));
- 
+
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       setUser(session?.user ?? null);
     });
- 
+
     // Retry after 800ms — catches cases where session cookie isn't
     // available on first mount after Google OAuth redirect
     const retry = setTimeout(() => {
@@ -42,13 +74,13 @@ export function Navbar() {
         if (data.session?.user) setUser(data.session.user);
       });
     }, 800);
- 
+
     return () => {
       sub.subscription.unsubscribe();
       clearTimeout(retry);
     };
   }, []);
- 
+
   // Close on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -57,20 +89,21 @@ export function Navbar() {
     if (open) document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
- 
+
   // Close on route change
-  useEffect(() => { setOpen(false); }, [pathname]);
- 
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
   const signOut = async () => {
     await supabase.auth.signOut();
     navigate({ to: "/" });
   };
- 
+
   return (
     <>
       <header className="sticky top-0 z-40 h-16 border-b border-border bg-background/90 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-12">
- 
           {/* Left: hamburger (always) + logo */}
           <div className="flex items-center gap-3">
             <div className="relative" ref={menuRef}>
@@ -81,19 +114,22 @@ export function Navbar() {
               >
                 {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
               </button>
- 
+
               {/* Dropdown menu */}
               {open && (
                 <div className="absolute left-0 top-11 z-50 w-56 overflow-hidden rounded-xl border border-border bg-card shadow-elevate">
                   {user ? (
                     <>
                       <div className="border-b border-border px-4 py-3">
-                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Signed in</p>
+                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                          Signed in
+                        </p>
                         <p className="mt-0.5 truncate text-sm font-medium">{user.email}</p>
                       </div>
                       <nav className="py-1.5">
                         {NAV_LINKS.map(({ to, label, icon: Icon }) => {
-                          const active = pathname === to || (to !== "/dashboard" && pathname.startsWith(to));
+                          const active =
+                            pathname === to || (to !== "/dashboard" && pathname.startsWith(to));
                           return (
                             <Link
                               key={to}
@@ -110,6 +146,20 @@ export function Navbar() {
                           );
                         })}
                       </nav>
+                      {isAdmin && (
+                        <div className="border-t border-border py-1.5">
+                          <Link
+                            to="/admin"
+                            className={`flex items-center gap-3 px-4 py-2.5 text-sm transition ${
+                              pathname.startsWith("/admin")
+                                ? "bg-primary/10 text-primary"
+                                : "text-foreground hover:bg-secondary"
+                            }`}
+                          >
+                            <ShieldCheck className="h-4 w-4 shrink-0" /> Admin
+                          </Link>
+                        </div>
+                      )}
                       <div className="border-t border-border py-1.5">
                         <button
                           onClick={signOut}
@@ -121,21 +171,42 @@ export function Navbar() {
                     </>
                   ) : (
                     <nav className="py-1.5">
-                      <Link to="/" className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-secondary">
+                      <Link
+                        to="/"
+                        className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-secondary"
+                      >
                         <Home className="h-4 w-4" /> Home
                       </Link>
-                      <Link to="/" hash="features" className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-secondary">
+                      <Link
+                        to="/features"
+                        className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-secondary"
+                      >
                         Features
                       </Link>
-                      <Link to="/" hash="pricing" className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-secondary">
+                      <Link
+                        to="/about"
+                        className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-secondary"
+                      >
+                        About
+                      </Link>
+                      <Link
+                        to="/pricing"
+                        className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-secondary"
+                      >
                         Pricing
+                      </Link>
+                      <Link
+                        to="/contact"
+                        className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-secondary"
+                      >
+                        Contact
                       </Link>
                     </nav>
                   )}
                 </div>
               )}
             </div>
- 
+
             <Link to="/" className="flex items-center gap-2">
               <span className="grid h-9 w-9 place-items-center rounded-lg bg-primary text-primary-foreground">
                 <CricketBall />
@@ -143,7 +214,7 @@ export function Navbar() {
               <span className="font-display text-2xl tracking-wide text-primary">JustCric</span>
             </Link>
           </div>
- 
+
           {/* Right: search + auth CTA */}
           <div className="flex items-center gap-2">
             {user ? (
@@ -186,12 +257,17 @@ export function Navbar() {
     </>
   );
 }
- 
+
 function CricketBall() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
       <circle cx="12" cy="12" r="9" fill="currentColor" />
-      <path d="M5 9c4 1 10 1 14 0M5 15c4-1 10-1 14 0" stroke="rgba(255,255,255,0.5)" strokeWidth="1" strokeLinecap="round" />
+      <path
+        d="M5 9c4 1 10 1 14 0M5 15c4-1 10-1 14 0"
+        stroke="rgba(255,255,255,0.5)"
+        strokeWidth="1"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }

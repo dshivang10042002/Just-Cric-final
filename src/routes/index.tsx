@@ -2,6 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { BottomNav } from "@/components/layout/BottomNav";
+import { BlogSection } from "@/components/landing/BlogSection";
+import { PostsSection } from "@/components/landing/PostsSection";
 import { supabase } from "@/integrations/supabase/client";
 import { Radio, ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -167,17 +169,34 @@ function Landing() {
         </section>
       )}
 
+      {/* ── Blog / News (public) ── */}
+      <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6">
+        <BlogSection />
+      </div>
+
+      {/* ── Optional Updates (Instagram-style posts, public) ── */}
+      <div className="py-4">
+        <PostsSection />
+      </div>
+
       {/* ── Dark footer ── */}
       <footer style={{ background: "#0f172a" }}>
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-4 py-8 text-sm sm:flex-row sm:px-6">
-          <div className="text-gray-300">
-            <span className="font-display text-lg text-white">JustCric</span>
-            <span className="mx-2 text-gray-500">·</span>
-            <span className="text-white">© JustCric {new Date().getFullYear()} — All rights reserved</span>
+        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+          <div className="flex flex-col items-center justify-between gap-6 sm:flex-row sm:items-start">
+            <div className="text-center sm:text-left">
+              <span className="font-display text-lg text-white">JustCric</span>
+              <p className="mt-1 max-w-xs text-xs text-gray-400">The free, modern scoring app for local, club, academy and corporate cricket across India.</p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm">
+              <a href="#live" className="text-gray-300 transition hover:text-white">Live</a>
+              <Link to="/features" className="text-gray-300 transition hover:text-white">Features</Link>
+              <Link to="/about" className="text-gray-300 transition hover:text-white">About</Link>
+              {!isLoggedIn && <Link to="/pricing" className="text-gray-300 transition hover:text-white">Pricing</Link>}
+              <Link to="/contact" className="text-gray-300 transition hover:text-white">Contact</Link>
+            </div>
           </div>
-          <div className="flex gap-5">
-            <a href="#live" className="text-gray-300 transition hover:text-white">Live</a>
-            {!isLoggedIn && <a href="#pricing" className="text-gray-300 transition hover:text-white">Pricing</a>}
+          <div className="mt-8 border-t border-white/10 pt-6 text-center text-sm text-white sm:text-left">
+            © JustCric {new Date().getFullYear()} — All rights reserved
           </div>
         </div>
       </footer>
@@ -332,7 +351,7 @@ function MyMatches() {
       <div className="flex items-center justify-between mb-4">
         <SectionHeader title="My Matches" sub="Your recent scorecards" icon="📋" />
       </div>
-      <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-none -mx-4 px-4 sm:-mx-6 sm:px-6">
+      <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar -mx-4 px-4 sm:-mx-6 sm:px-6">
         {[0,1,2,3].map((i) => (
           <div key={i} className="h-44 w-72 shrink-0 animate-pulse rounded-2xl border border-border bg-card" />
         ))}
@@ -358,7 +377,7 @@ function MyMatches() {
         </Link>
       </div>
       {/* Horizontal scrollable row */}
-      <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-none -mx-4 px-4 sm:-mx-6 sm:px-6">
+      <div className="flex gap-4 overflow-x-auto pb-3 no-scrollbar -mx-4 px-4 sm:-mx-6 sm:px-6">
         {matches.map((m) => (
           <div key={m.id} className="w-72 shrink-0 sm:w-80">
             <CricMatchCard m={m} />
@@ -572,7 +591,7 @@ function PlayerCard({ p, rank, valueLabel }: { p: PlayerStat; rank: number; valu
 
 function PlayerSlider({ players, valueLabel, loading }: { players: PlayerStat[]; valueLabel: string; loading: boolean }) {
   if (loading) return (
-    <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-none -mx-4 px-4 sm:-mx-6 sm:px-6">
+    <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar -mx-4 px-4 sm:-mx-6 sm:px-6">
       {[0,1,2,3,4,5].map((i) => <div key={i} className="aspect-[3/4] w-44 shrink-0 animate-pulse rounded-2xl bg-secondary sm:w-48" />)}
     </div>
   );
@@ -582,7 +601,7 @@ function PlayerSlider({ players, valueLabel, loading }: { players: PlayerStat[];
     </div>
   );
   return (
-    <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-none -mx-4 px-4 sm:-mx-6 sm:px-6">
+    <div className="flex gap-4 overflow-x-auto pb-3 no-scrollbar -mx-4 px-4 sm:-mx-6 sm:px-6">
       {players.map((p, i) => (
         <div key={p.id} className="w-44 shrink-0 sm:w-48">
           <PlayerCard p={p} rank={i + 1} valueLabel={valueLabel} />
@@ -958,7 +977,7 @@ function RecentPerformances() {
         icon="⚡"
       />
       {loading ? (
-        <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-none -mx-4 px-4 sm:-mx-6 sm:px-6">
+        <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar -mx-4 px-4 sm:-mx-6 sm:px-6">
           {[0,1,2,3,4,5].map((i) => <div key={i} className="h-24 w-64 shrink-0 animate-pulse rounded-2xl border border-border bg-card" />)}
         </div>
       ) : !perfs.length ? (
@@ -972,7 +991,7 @@ function RecentPerformances() {
           <div
             ref={scrollRef}
             onScroll={onScroll}
-            className="flex gap-4 overflow-x-auto pb-3 scrollbar-none snap-x snap-mandatory -mx-4 px-4 sm:-mx-6 sm:px-6"
+            className="flex gap-4 overflow-x-auto pb-3 no-scrollbar snap-x snap-mandatory -mx-4 px-4 sm:-mx-6 sm:px-6"
           >
             {perfs.map((p) => (
               <div key={p.id} className={`flex w-64 shrink-0 snap-start items-center gap-3 rounded-2xl border px-4 py-4 shadow-elevate ${p.type === "motm" ? "border-yellow-400/30 bg-yellow-400/5" : "border-border bg-card"}`}>
