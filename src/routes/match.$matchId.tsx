@@ -15,7 +15,7 @@ function PlayerLink({ id, name, className, fallback = "—" }: { id?: string | n
       to="/players/$playerId"
       params={{ playerId: id }}
       onClick={(e) => e.stopPropagation()}
-      className={`hover:underline underline-offset-2 ${className ?? ""}`}
+      className={className ?? "text-[#0284c7] font-semibold hover:underline"}
     >
       {name ?? fallback}
     </Link>
@@ -69,18 +69,19 @@ const TABS: { id: Tab; label: string }[] = [
 
 /* ─── Cricbuzz colour tokens ─── */
 const CB = {
-  // Exact Cricbuzz colors
-  green: "#2a834a",        // Cricbuzz dark green header
-  greenDark: "#1e6639",    // darker shade for batting header
-  greenTab: "#2a834a",     // tab bar bg
-  orange: "#f7941d",       // Cricbuzz orange accent
-  orangeText: "#e8870f",   // orange text
+  // Colors matched exactly to the provided scorecard design
+  green: "#009270",       // header / innings bar green (from design)
+  greenDark: "#00785d",
+  greenTab: "#009270",
+  link: "#0284c7",         // player name link blue (from design)
+  orange: "#f7941d",       // kept for live badge / big-hit highlights elsewhere
+  orangeText: "#e8870f",
   headerText: "#ffffff",
-  tableHeader: "#e8f5ee",  // light green table header bg
-  rowAlt: "#f5faf7",       // very light green alt row
-  rowHover: "#edf7f1",
-  border: "#d4e9dc",       // green-tinted border
-  muted: "#6b7280",
+  tableHeader: "#f3f4f6",  // gray-100 — plain table header bg (from design)
+  rowAlt: "#f9fafb",       // gray-50 — hover row bg (from design)
+  rowHover: "#f9fafb",
+  border: "#e5e7eb",       // gray-200 (from design)
+  muted: "#6b7280",        // gray-500
   livePill: "#e53e3e",
 };
 
@@ -518,147 +519,143 @@ function ScorecardTab({ match, innings, balls, players }: { match: Match; inning
         const overs = `${Math.floor(inn.balls / 6)}.${inn.balls % 6}`;
         const rr = inn.balls > 0 ? ((inn.runs / inn.balls) * 6).toFixed(2) : "0.00";
         return (
-          <div key={inn.id} className="overflow-hidden rounded-xl border border-border bg-card">
-            {/* Innings header — Cricbuzz green */}
-            <div className="flex items-center justify-between px-4 py-3" style={{ background: CB.green }}>
-              <div>
-                <div className="text-[10px] text-white/60 uppercase tracking-widest font-bold mb-0.5">
-                  {battingTeam.short_name || battingTeam.name} Innings {inn.innings_no}
-                </div>
-                <div className="font-bold text-white text-base">{battingTeam.name}</div>
-              </div>
-              <div className="text-right">
-                <div className="font-display text-3xl tabular-nums text-white font-bold tracking-tight">
-                  {inn.runs}<span className="text-white/50 text-2xl font-normal">-{inn.wickets}</span>
-                </div>
-                <div className="text-[11px] text-white/60 font-mono mt-0.5">{overs} Ov · RR {rr}</div>
-              </div>
+          <div key={inn.id} className="space-y-4">
+          <div className="overflow-hidden rounded border border-gray-200 bg-white shadow-sm">
+            {/* Innings header */}
+            <div className="flex items-center justify-between px-4 py-2 font-bold text-white" style={{ background: CB.green }}>
+              <span>{battingTeam.name}</span>
+              <span>{inn.runs}-{inn.wickets} <span className="font-normal opacity-90">({overs} Ov)</span></span>
             </div>
 
             {/* Batting table */}
             <div className="overflow-x-auto">
-              <table className="w-full text-sm border-collapse">
-                <thead>
-                  <tr style={{ background: CB.tableHeader, borderBottom: `2px solid ${CB.border}` }}>
-                    <th className="py-2 pl-4 pr-2 text-left text-[11px] font-bold" style={{ color: CB.green }}>BATTER</th>
-                    <th className="py-2 px-2 text-center text-[11px] font-bold w-10" style={{ color: CB.green }}>R</th>
-                    <th className="py-2 px-2 text-center text-[11px] font-bold w-10" style={{ color: CB.green }}>B</th>
-                    <th className="py-2 px-2 text-center text-[11px] font-bold w-10" style={{ color: CB.green }}>4s</th>
-                    <th className="py-2 px-2 text-center text-[11px] font-bold w-10" style={{ color: CB.green }}>6s</th>
-                    <th className="py-2 pl-2 pr-2 text-right text-[11px] font-bold w-14" style={{ color: CB.green }}>SR</th>
-                    <th className="w-6"></th>
+              <table className="w-full text-sm text-left">
+                <thead className="bg-gray-100 text-gray-600 font-bold border-b">
+                  <tr>
+                    <th className="px-4 py-2 w-1/3">Batter</th>
+                    <th className="px-2 py-2 text-right">R</th>
+                    <th className="px-2 py-2 text-right">B</th>
+                    <th className="px-2 py-2 text-right">4s</th>
+                    <th className="px-2 py-2 text-right">6s</th>
+                    <th className="px-2 py-2 text-right">SR</th>
+                    <th className="px-4 py-2"></th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-gray-100">
                   {batting.length === 0 ? (
-                    <tr><td colSpan={7} className="py-5 text-center text-xs text-muted-foreground">No batting yet</td></tr>
-                  ) : batting.map((r, i) => (
-                    <tr key={r.id} style={{ background: i % 2 === 0 ? "#fff" : CB.rowAlt, borderBottom: `1px solid ${CB.border}` }}>
-                      <td className="py-2.5 pl-4 pr-2">
-                        <div className="font-semibold text-sm" style={!r.out ? { color: CB.orangeText } : { color: "#111" }}>
-                          <PlayerLink id={r.id} name={r.name} />
-                          {!r.out && <span className="ml-1 text-[9px]" style={{ color: CB.orange }}>●</span>}
-                        </div>
-                        <div className="text-[11px] mt-0.5" style={{ color: CB.muted }}>{r.out ? r.outDesc : "not out"}</div>
+                    <tr><td colSpan={7} className="py-5 text-center text-xs text-gray-500">No batting yet</td></tr>
+                  ) : batting.map((r) => (
+                    <tr key={r.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <PlayerLink id={r.id} name={r.name} />
+                        <span className="block text-xs text-gray-500">{r.out ? r.outDesc : "batting"}</span>
                       </td>
-                      <td className="py-2.5 px-2 text-center font-bold text-base" style={{ color: r.runs >= 50 ? CB.orangeText : "#111" }}>{r.runs}</td>
-                      <td className="py-2.5 px-2 text-center font-mono text-xs" style={{ color: CB.muted }}>{r.balls}</td>
-                      <td className="py-2.5 px-2 text-center font-mono text-xs font-semibold" style={{ color: CB.green }}>{r.fours}</td>
-                      <td className="py-2.5 px-2 text-center font-mono text-xs font-bold" style={{ color: CB.orange }}>{r.sixes}</td>
-                      <td className="py-2.5 pl-2 pr-2 text-right font-mono text-xs" style={{ color: CB.muted }}>
-                        {r.balls > 0 ? ((r.runs / r.balls) * 100).toFixed(1) : "—"}
-                      </td>
-                      <td className="pr-3 text-right text-xs" style={{ color: CB.muted }}>{r.id ? "›" : ""}</td>
+                      <td className="px-2 py-3 text-right font-bold">{r.runs}</td>
+                      <td className="px-2 py-3 text-right">{r.balls}</td>
+                      <td className="px-2 py-3 text-right">{r.fours}</td>
+                      <td className="px-2 py-3 text-right">{r.sixes}</td>
+                      <td className="px-2 py-3 text-right">{r.balls > 0 ? ((r.runs / r.balls) * 100).toFixed(2) : "0.00"}</td>
+                      <td className="px-4 py-3 text-right text-gray-400">{r.id ? "›" : ""}</td>
                     </tr>
                   ))}
+
+                  {/* Extras */}
+                  <tr className="bg-gray-50 font-semibold">
+                    <td className="px-4 py-2">Extras</td>
+                    <td className="px-2 py-2 text-right" colSpan={5}>
+                      {inn.extras} <span className="font-normal text-xs text-gray-500">(b {extras.byes}, lb {extras.legbyes}, w {extras.wides}, nb {extras.noballs})</span>
+                    </td>
+                    <td></td>
+                  </tr>
+                  {/* Total */}
+                  <tr className="bg-white border-t border-gray-200 font-bold">
+                    <td className="px-4 py-2">Total</td>
+                    <td className="px-2 py-2 text-right" colSpan={5}>
+                      {inn.runs}-{inn.wickets} <span className="font-normal text-xs text-gray-500">({overs} Overs, RR: {rr})</span>
+                    </td>
+                    <td></td>
+                  </tr>
+                  {/* Yet to bat */}
+                  {(() => {
+                    const battedIds = new Set(batting.map(b => b.id));
+                    const allSquad = Object.values(players).filter(p => p.team_id === battingTeam.id);
+                    const yetToBat = allSquad.filter(p => !battedIds.has(p.id));
+                    if (!yetToBat.length) return null;
+                    return (
+                      <tr className="bg-white border-t border-gray-200 text-xs">
+                        <td className="px-4 py-3 font-bold">Yet to Bat</td>
+                        <td className="px-2 py-3" colSpan={6}>
+                          {yetToBat.map((p, i) => (
+                            <span key={p.id}>
+                              <PlayerLink id={p.id} name={p.player_name} className="text-[#0284c7] hover:underline" />
+                              {i < yetToBat.length - 1 ? ", " : ""}
+                            </span>
+                          ))}
+                        </td>
+                      </tr>
+                    );
+                  })()}
                 </tbody>
               </table>
             </div>
+          </div>
 
-            {/* Extras + total */}
-            <div className="px-4 py-2 flex items-center justify-between text-xs flex-wrap gap-y-1" style={{ background: CB.tableHeader, borderTop: `1px solid ${CB.border}`, borderBottom: `1px solid ${CB.border}` }}>
-              <span style={{ color: CB.muted }}>
-                Extras <b style={{ color: "#111" }}>{inn.extras}</b>
-                <span className="ml-1">(b {extras.byes}, lb {extras.legbyes}, w {extras.wides}, nb {extras.noballs})</span>
-              </span>
-              <span style={{ color: CB.muted }}>Total <b style={{ color: "#111" }}>{inn.runs}-{inn.wickets} ({overs} Ov)</b> · RR <b style={{ color: CB.green }}>{rr}</b></span>
-            </div>
-
-            {/* Yet to bat */}
-            {(() => {
-              const battedIds = new Set(batting.map(b => b.id));
-              const allSquad = Object.values(players).filter(p => p.team_id === battingTeam.id);
-              const yetToBat = allSquad.filter(p => !battedIds.has(p.id));
-              if (!yetToBat.length) return null;
-              return (
-                <div className="border-b border-border px-4 py-2 text-xs text-muted-foreground">
-                  <span className="font-semibold text-foreground">Yet to bat: </span>
-                  {yetToBat.map((p, i) => (
-                    <span key={p.id}>
-                      <PlayerLink id={p.id} name={p.player_name} />
-                      {i < yetToBat.length - 1 ? ", " : ""}
-                    </span>
-                  ))}
-                </div>
-              );
-            })()}
-
-            {/* Bowling table */}
+            {/* Bowling table — its own card */}
+            <div className="overflow-hidden rounded border border-gray-200 bg-white shadow-sm">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm border-collapse">
-                <thead>
-                  <tr style={{ background: CB.tableHeader, borderTop: `2px solid ${CB.green}`, borderBottom: `1px solid ${CB.border}` }}>
-                    <th className="py-2 pl-4 pr-2 text-left text-[11px] font-bold" style={{ color: CB.green }}>BOWLER</th>
-                    <th className="py-2 px-2 text-center text-[11px] font-bold w-10" style={{ color: CB.green }}>O</th>
-                    <th className="py-2 px-2 text-center text-[11px] font-bold w-10" style={{ color: CB.green }}>M</th>
-                    <th className="py-2 px-2 text-center text-[11px] font-bold w-10" style={{ color: CB.green }}>R</th>
-                    <th className="py-2 px-2 text-center text-[11px] font-bold w-10" style={{ color: CB.green }}>W</th>
-                    <th className="py-2 px-2 text-center text-[11px] font-bold w-10" style={{ color: CB.green }}>NB</th>
-                    <th className="py-2 px-2 text-center text-[11px] font-bold w-10" style={{ color: CB.green }}>WD</th>
-                    <th className="py-2 pl-2 pr-2 text-right text-[11px] font-bold w-14" style={{ color: CB.green }}>ECO</th>
-                    <th className="w-6"></th>
+              <table className="w-full text-sm text-left">
+                <thead className="bg-gray-100 text-gray-600 font-bold border-b">
+                  <tr>
+                    <th className="px-4 py-2 w-1/3">Bowler</th>
+                    <th className="px-2 py-2 text-right">O</th>
+                    <th className="px-2 py-2 text-right">M</th>
+                    <th className="px-2 py-2 text-right">R</th>
+                    <th className="px-2 py-2 text-right font-black">W</th>
+                    <th className="px-2 py-2 text-right">NB</th>
+                    <th className="px-2 py-2 text-right">WD</th>
+                    <th className="px-2 py-2 text-right">ECO</th>
+                    <th className="px-4 py-2"></th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-gray-100">
                   {bowling.length === 0 ? (
-                    <tr><td colSpan={9} className="py-5 text-center text-xs text-muted-foreground">No bowling yet</td></tr>
-                  ) : bowling.map((r, i) => (
-                    <tr key={r.id} style={{ background: i % 2 === 0 ? "#fff" : CB.rowAlt, borderBottom: `1px solid ${CB.border}` }}>
-                      <td className="py-2.5 pl-4 pr-2 font-semibold text-sm" style={{ color: "#111" }}><PlayerLink id={r.id} name={r.name} /></td>
-                      <td className="py-2.5 px-2 text-center font-mono text-xs" style={{ color: "#111" }}>{Math.floor(r.legal / 6)}.{r.legal % 6}</td>
-                      <td className="py-2.5 px-2 text-center font-mono text-xs" style={{ color: CB.muted }}>{r.maidens}</td>
-                      <td className="py-2.5 px-2 text-center font-mono text-xs" style={{ color: "#111" }}>{r.runs}</td>
-                      <td className="py-2.5 px-2 text-center font-bold text-base" style={{ color: r.wkts > 0 ? CB.orangeText : "#111" }}>{r.wkts}</td>
-                      <td className="py-2.5 px-2 text-center font-mono text-xs" style={{ color: CB.muted }}>{r.nb}</td>
-                      <td className="py-2.5 px-2 text-center font-mono text-xs" style={{ color: CB.muted }}>{r.wd}</td>
-                      <td className="py-2.5 pl-2 pr-2 text-right font-mono text-xs" style={{ color: CB.muted }}>
-                        {r.legal > 0 ? ((r.runs / r.legal) * 6).toFixed(2) : "—"}
-                      </td>
-                      <td className="pr-3 text-right text-xs" style={{ color: CB.muted }}>›</td>
+                    <tr><td colSpan={9} className="py-5 text-center text-xs text-gray-500">No bowling yet</td></tr>
+                  ) : bowling.map((r) => (
+                    <tr key={r.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3"><PlayerLink id={r.id} name={r.name} /></td>
+                      <td className="px-2 py-3 text-right font-medium">{Math.floor(r.legal / 6)}.{r.legal % 6}</td>
+                      <td className="px-2 py-3 text-right">{r.maidens}</td>
+                      <td className="px-2 py-3 text-right">{r.runs}</td>
+                      <td className="px-2 py-3 text-right font-bold">{r.wkts}</td>
+                      <td className="px-2 py-3 text-right">{r.nb}</td>
+                      <td className="px-2 py-3 text-right">{r.wd}</td>
+                      <td className="px-2 py-3 text-right">{r.legal > 0 ? ((r.runs / r.legal) * 6).toFixed(2) : "0.00"}</td>
+                      <td className="px-4 py-3 text-right text-gray-400">›</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+            </div>
 
-            {/* Fall of Wickets — table form */}
+            {/* Fall of Wickets — its own card */}
             {fow.length > 0 && (
-              <div style={{ borderTop: `1px solid ${CB.border}`, background: "#fff" }}>
-                <div className="px-4 py-2 text-[11px] font-bold uppercase tracking-wider" style={{ background: CB.tableHeader, color: CB.green }}>Fall of Wickets</div>
-                <table className="w-full text-sm border-collapse">
-                  <thead>
-                    <tr style={{ borderBottom: `1px solid ${CB.border}` }}>
-                      <th className="py-2 pl-4 pr-2 text-left text-[11px] font-semibold" style={{ color: CB.muted }}>Batter</th>
-                      <th className="py-2 px-2 text-center text-[11px] font-semibold" style={{ color: CB.muted }}>Score</th>
-                      <th className="py-2 pr-4 text-right text-[11px] font-semibold" style={{ color: CB.muted }}>Over</th>
+              <div className="overflow-hidden rounded border border-gray-200 bg-white shadow-sm">
+                <div className="bg-gray-100 px-4 py-2 font-bold text-sm">Fall of Wickets</div>
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-white text-gray-500 font-semibold border-b">
+                    <tr>
+                      <th className="px-4 py-2">Batter</th>
+                      <th className="px-4 py-2 text-center">Score</th>
+                      <th className="px-4 py-2 text-right">Over</th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {fow.map((f, i) => (
-                      <tr key={f.wicket} style={{ background: i % 2 === 0 ? "#fff" : CB.rowAlt, borderBottom: `1px solid ${CB.border}` }}>
-                        <td className="py-2 pl-4 pr-2 text-xs"><PlayerLink id={f.batsmanId} name={f.batsmanName} /></td>
-                        <td className="py-2 px-2 text-center text-xs font-semibold">{f.score}-{f.wicket}</td>
-                        <td className="py-2 pr-4 text-right text-xs font-mono" style={{ color: CB.muted }}>{f.over}</td>
+                  <tbody className="divide-y divide-gray-100">
+                    {fow.map((f) => (
+                      <tr key={f.wicket}>
+                        <td className="px-4 py-2"><PlayerLink id={f.batsmanId} name={f.batsmanName} className="text-[#0284c7]" /></td>
+                        <td className="px-4 py-2 text-center">{f.score}-{f.wicket}</td>
+                        <td className="px-4 py-2 text-right">{f.over}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -666,46 +663,44 @@ function ScorecardTab({ match, innings, balls, players }: { match: Match; inning
               </div>
             )}
 
-            {/* Powerplays */}
+            {/* Powerplays — its own card */}
             {ppOvers > 0 && innBalls.length > 0 && (
-              <div style={{ borderTop: `1px solid ${CB.border}`, background: "#fff" }}>
-                <div className="px-4 py-2 text-[11px] font-bold uppercase tracking-wider" style={{ background: CB.tableHeader, color: CB.green }}>Powerplays</div>
-                <table className="w-full text-sm border-collapse">
-                  <thead>
-                    <tr style={{ borderBottom: `1px solid ${CB.border}` }}>
-                      <th className="py-2 pl-4 pr-2 text-left text-[11px] font-semibold" style={{ color: CB.muted }}>Mandatory</th>
-                      <th className="py-2 px-2 text-center text-[11px] font-semibold" style={{ color: CB.muted }}>Overs</th>
-                      <th className="py-2 pr-4 text-right text-[11px] font-semibold" style={{ color: CB.muted }}>Runs</th>
+              <div className="overflow-hidden rounded border border-gray-200 bg-white shadow-sm">
+                <div className="bg-gray-100 px-4 py-2 font-bold text-sm">Powerplays</div>
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-white text-gray-500 font-semibold border-b">
+                    <tr>
+                      <th className="px-4 py-2">Mandatory</th>
+                      <th className="px-4 py-2 text-center">Overs</th>
+                      <th className="px-4 py-2 text-right">Runs</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr>
-                      <td className="py-2 pl-4 pr-2 text-xs">Mandatory</td>
-                      <td className="py-2 px-2 text-center text-xs font-mono">0.1 - {ppOvers}</td>
-                      <td className="py-2 pr-4 text-right text-xs font-semibold">{ppRuns}</td>
+                      <td className="px-4 py-2">Mandatory</td>
+                      <td className="px-4 py-2 text-center">0.1 - {ppOvers}</td>
+                      <td className="px-4 py-2 text-right">{ppRuns}</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
             )}
 
-            {/* Partnerships */}
+            {/* Partnerships — its own card */}
             {partnerships.length > 0 && (
-              <div className="px-4 py-3" style={{ borderTop: `1px solid ${CB.border}`, background: "#fff" }}>
-                <div className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: CB.green }}>Partnerships</div>
-                <div className="space-y-1.5">
+              <div className="overflow-hidden rounded border border-gray-200 bg-white shadow-sm">
+                <div className="bg-gray-100 px-4 py-2 font-bold text-sm">Partnerships</div>
+                <div className="p-4 space-y-2">
                   {partnerships.map((p, i) => (
                     <div key={i} className="flex items-center gap-2 text-xs">
-                      <span className="font-semibold text-foreground w-16 shrink-0 tabular-nums">
-                        {p.runs}({p.balls})
-                      </span>
+                      <span className="font-semibold w-16 shrink-0 tabular-nums">{p.runs}({p.balls})</span>
                       <div className="flex-1 min-w-0">
-                        <div className="h-2 rounded-full bg-muted overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${Math.min(100, p.runs)}%`, background: CB.orange }} />
+                        <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${Math.min(100, p.runs)}%`, background: CB.green }} />
                         </div>
                       </div>
-                      <span className="text-muted-foreground shrink-0 text-[11px]">
-                        <PlayerLink id={p.bat1Id} name={p.bat1} /> & <PlayerLink id={p.bat2Id} name={p.bat2} />
+                      <span className="text-gray-500 shrink-0 text-[11px]">
+                        <PlayerLink id={p.bat1Id} name={p.bat1} className="text-[#0284c7]" /> & <PlayerLink id={p.bat2Id} name={p.bat2} className="text-[#0284c7]" />
                       </span>
                     </div>
                   ))}
@@ -825,12 +820,12 @@ function OverSummaryCard({ over }: { over: OverEntry }) {
       <div className="mt-2 flex flex-wrap items-center justify-between gap-x-6 gap-y-1 text-xs text-muted-foreground">
         <div className="flex flex-wrap gap-x-4">
           {over.batters.map((bat) => (
-            <span key={bat.id}><PlayerLink id={bat.id} name={bat.name} className="font-medium text-foreground" /> {bat.runs} ({bat.balls})</span>
+            <span key={bat.id}><PlayerLink id={bat.id} name={bat.name} className="font-medium text-[#0284c7]" /> {bat.runs} ({bat.balls})</span>
           ))}
         </div>
         {over.bowler && (
           <span>
-            <PlayerLink id={over.bowler.id} name={over.bowler.name} className="font-medium text-foreground" />{" "}
+            <PlayerLink id={over.bowler.id} name={over.bowler.name} className="font-medium text-[#0284c7]" />{" "}
             {over.bowlerFigures.overs}-0-{over.bowlerFigures.runs}-{over.bowlerFigures.wkts}
           </span>
         )}
@@ -870,13 +865,13 @@ function InningsAnalysisCard({ inn, team, batting, bowling, opponentTarget }: {
         <p>
           {team.name} finished on <b>{inn.runs}-{inn.wickets}</b> from {overs} overs (RR {rr}).{" "}
           {topBat && (
-            <><PlayerLink id={topBat.id} name={topBat.name} className="font-semibold" /> top-scored with {topBat.runs} off {topBat.balls} balls
+            <><PlayerLink id={topBat.id} name={topBat.name} className="font-semibold text-[#0284c7]" /> top-scored with {topBat.runs} off {topBat.balls} balls
             {topBat.fours + topBat.sixes > 0 ? ` (${topBat.fours}x4, ${topBat.sixes}x6)` : ""}.</>
           )}
         </p>
         {topBowl && topBowl.wkts > 0 && (
           <p>
-            With the ball, <PlayerLink id={topBowl.id} name={topBowl.name} className="font-semibold" /> was the standout, picking up {topBowl.wkts} wicket{topBowl.wkts === 1 ? "" : "s"} for {topBowl.runs} runs.
+            With the ball, <PlayerLink id={topBowl.id} name={topBowl.name} className="font-semibold text-[#0284c7]" /> was the standout, picking up {topBowl.wkts} wicket{topBowl.wkts === 1 ? "" : "s"} for {topBowl.runs} runs.
           </p>
         )}
         {chaseLine && <p>{chaseLine}</p>}
