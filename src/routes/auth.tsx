@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { z } from "zod";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable";
  
 const searchSchema = z.object({
   mode: z.enum(["login", "register"]).default("login"),
@@ -75,16 +74,18 @@ function AuthPage() {
  
   const handleGoogle = async () => {
     setLoading(true);
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin + "/dashboard",
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
     });
-    if (result.error) {
-      toast.error(result.error.message ?? "Google sign-in failed");
+    if (error) {
+      toast.error(error.message ?? "Google sign-in failed");
       setLoading(false);
       return;
     }
-    if (result.redirected) return;
-    navigate({ to: "/" });
+    // Supabase now redirects the browser to Google, then back to /auth/callback — nothing more to do here.
   };
  
   return (
