@@ -7,6 +7,21 @@ import { Radio, Star, Zap, Loader2 } from "lucide-react";
 import { VideoStreamEmbed } from "@/components/VideoStreamEmbed";
 import { PlayerAvatarChip, RoleBadge } from "@/components/PlayerAvatarChip";
 
+/* ─── Player link — wraps a player's name so it opens their profile ─── */
+function PlayerLink({ id, name, className, fallback = "—" }: { id?: string | null; name?: string | null; className?: string; fallback?: string }) {
+  if (!id) return <span className={className}>{name ?? fallback}</span>;
+  return (
+    <Link
+      to="/players/$playerId"
+      params={{ playerId: id }}
+      onClick={(e) => e.stopPropagation()}
+      className={`hover:underline underline-offset-2 ${className ?? ""}`}
+    >
+      {name ?? fallback}
+    </Link>
+  );
+}
+
 export const Route = createFileRoute("/match/$matchId")({
   ssr: false,
   head: () => ({ meta: [{ title: "Scorecard — JustCric" }] }),
@@ -37,6 +52,7 @@ type Ball = {
 type Member = {
   id: string; player_name: string; team_id: string; jersey_number: number | null;
   avatar_url?: string | null; role?: string | null;
+  batting_style?: string | null; bowling_style?: string | null;
   is_captain?: boolean; is_wicketkeeper?: boolean;
 };
 type MotmProfile = { id: string; full_name: string | null; avatar_url: string | null };
@@ -121,12 +137,13 @@ function PublicScorecard() {
     }
 
     const { data: ms } = await supabase.from("team_members")
-      .select("id, player_name, team_id, jersey_number, role, profiles(avatar_url)")
+      .select("id, player_name, team_id, jersey_number, role, batting_style, bowling_style, profiles(avatar_url)")
       .in("team_id", [mm.team_a.id, mm.team_b.id]);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const memList: Member[] = ((ms ?? []) as any[]).map((p) => ({
       id: p.id, player_name: p.player_name, team_id: p.team_id,
       jersey_number: p.jersey_number, role: p.role ?? null,
+      batting_style: p.batting_style ?? null, bowling_style: p.bowling_style ?? null,
       avatar_url: p.profiles?.avatar_url ?? null,
     }));
     const map: Record<string, Member> = {};
@@ -292,9 +309,9 @@ function LiveTab({ match, currentInn, balls, players }: {
       <CbCard>
         <CbCardHeader label={`Innings ${currentInn.innings_no} · At the crease`} />
         <div className="grid grid-cols-3 divide-x divide-border">
-          <CbPlayerCell label="Striker ✦" name={currentInn.striker_id ? players[currentInn.striker_id]?.player_name : null} accent />
-          <CbPlayerCell label="Non-striker" name={currentInn.non_striker_id ? players[currentInn.non_striker_id]?.player_name : null} />
-          <CbPlayerCell label="Bowler" name={currentInn.bowler_id ? players[currentInn.bowler_id]?.player_name : null} />
+          <CbPlayerCell label="Striker ✦" id={currentInn.striker_id} name={currentInn.striker_id ? players[currentInn.striker_id]?.player_name : null} accent />
+          <CbPlayerCell label="Non-striker" id={currentInn.non_striker_id} name={currentInn.non_striker_id ? players[currentInn.non_striker_id]?.player_name : null} />
+          <CbPlayerCell label="Bowler" id={currentInn.bowler_id} name={currentInn.bowler_id ? players[currentInn.bowler_id]?.player_name : null} />
         </div>
       </CbCard>
 
@@ -330,8 +347,8 @@ function LiveTab({ match, currentInn, balls, players }: {
 
 /* ─── Scorecard tab — Cricbuzz green header tables ─── */
 type BatLine = { id: string; name: string; runs: number; balls: number; fours: number; sixes: number; out: boolean; outDesc: string };
-type FowEntry = { wicket: number; score: number; over: string; batsmanName: string };
-type Partnership = { bat1: string; bat2: string; runs: number; balls: number };
+type FowEntry = { wicket: number; score: number; over: string; batsmanName: string; batsmanId: string | null };
+type Partnership = { bat1: string; bat1Id: string | null; bat2: string; bat2Id: string | null; runs: number; balls: number };
 type BowlLine = { id: string; name: string; legal: number; runs: number; wkts: number; maidens: number };
 
 function buildInningsTables(innBalls: Ball[], players: Record<string, Member>) {
@@ -397,12 +414,16 @@ function buildInningsTables(innBalls: Ball[], players: Record<string, Member>) {
 
       // FOW
       const overStr = `${Math.floor(runningLegalBalls / 6)}.${runningLegalBalls % 6}`;
-      fow.push({ wicket: fow.length + 1, score: runningRuns, over: overStr, batsmanName: row.name });
+      fow.push({ wicket: fow.length + 1, score: runningRuns, over: overStr, batsmanName: row.name, batsmanId: row.id });
 
       // Partnership
       const partRuns = runningRuns - partnershipStart;
       if (currentStriker && currentNonStriker) {
-        partnerships.push({ bat1: players[currentStriker]?.player_name ?? "—", bat2: players[currentNonStriker]?.player_name ?? "—", runs: partRuns, balls: partnershipBalls });
+        partnerships.push({
+          bat1: players[currentStriker]?.player_name ?? "—", bat1Id: currentStriker,
+          bat2: players[currentNonStriker]?.player_name ?? "—", bat2Id: currentNonStriker,
+          runs: partRuns, balls: partnershipBalls,
+        });
       }
       partnershipStart = runningRuns;
       partnershipBalls = 0;
@@ -488,7 +509,7 @@ function ScorecardTab({ match, innings, balls, players }: { match: Match; inning
                     <tr key={r.id} style={{ background: i % 2 === 0 ? "#fff" : CB.rowAlt, borderBottom: `1px solid ${CB.border}` }}>
                       <td className="py-2.5 pl-4 pr-2">
                         <div className="font-semibold text-sm" style={!r.out ? { color: CB.orangeText } : { color: "#111" }}>
-                          {r.name}
+                          <PlayerLink id={r.id} name={r.name} />
                           {!r.out && <span className="ml-1 text-[9px]" style={{ color: CB.orange }}>●</span>}
                         </div>
                         <div className="text-[11px] mt-0.5" style={{ color: CB.muted }}>{r.out ? r.outDesc : "not out"}</div>
@@ -521,7 +542,12 @@ function ScorecardTab({ match, innings, balls, players }: { match: Match; inning
               return (
                 <div className="border-b border-border px-4 py-2 text-xs text-muted-foreground">
                   <span className="font-semibold text-foreground">Yet to bat: </span>
-                  {yetToBat.map(p => p.player_name).join(", ")}
+                  {yetToBat.map((p, i) => (
+                    <span key={p.id}>
+                      <PlayerLink id={p.id} name={p.player_name} />
+                      {i < yetToBat.length - 1 ? ", " : ""}
+                    </span>
+                  ))}
                 </div>
               );
             })()}
@@ -544,7 +570,7 @@ function ScorecardTab({ match, innings, balls, players }: { match: Match; inning
                     <tr><td colSpan={6} className="py-5 text-center text-xs text-muted-foreground">No bowling yet</td></tr>
                   ) : bowling.map((r, i) => (
                     <tr key={r.id} style={{ background: i % 2 === 0 ? "#fff" : CB.rowAlt, borderBottom: `1px solid ${CB.border}` }}>
-                      <td className="py-2.5 pl-4 pr-2 font-semibold text-sm" style={{ color: "#111" }}>{r.name}</td>
+                      <td className="py-2.5 pl-4 pr-2 font-semibold text-sm" style={{ color: "#111" }}><PlayerLink id={r.id} name={r.name} /></td>
                       <td className="py-2.5 px-2 text-center font-mono text-xs" style={{ color: "#111" }}>{Math.floor(r.legal / 6)}.{r.legal % 6}</td>
                       <td className="py-2.5 px-2 text-center font-mono text-xs" style={{ color: CB.muted }}>{r.maidens}</td>
                       <td className="py-2.5 px-2 text-center font-mono text-xs" style={{ color: "#111" }}>{r.runs}</td>
@@ -566,7 +592,7 @@ function ScorecardTab({ match, innings, balls, players }: { match: Match; inning
                   {fow.map((f) => (
                     <span key={f.wicket} className="text-xs text-foreground">
                       <span className="font-semibold">{f.score}-{f.wicket}</span>
-                      <span className="text-muted-foreground ml-1">({f.batsmanName}, {f.over} Ov)</span>
+                      <span className="text-muted-foreground ml-1">(<PlayerLink id={f.batsmanId} name={f.batsmanName} />, {f.over} Ov)</span>
                     </span>
                   ))}
                 </div>
@@ -588,7 +614,9 @@ function ScorecardTab({ match, innings, balls, players }: { match: Match; inning
                           <div className="h-full rounded-full" style={{ width: `${Math.min(100, p.runs)}%`, background: CB.orange }} />
                         </div>
                       </div>
-                      <span className="text-muted-foreground shrink-0 text-[11px]">{p.bat1} & {p.bat2}</span>
+                      <span className="text-muted-foreground shrink-0 text-[11px]">
+                        <PlayerLink id={p.bat1Id} name={p.bat1} /> & <PlayerLink id={p.bat2Id} name={p.bat2} />
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -602,21 +630,168 @@ function ScorecardTab({ match, innings, balls, players }: { match: Match; inning
 }
 
 /* ─── Commentary ─── */
-function commentaryLine(b: Ball, players: Record<string, Member>) {
-  const batter = b.batter_id ? players[b.batter_id]?.player_name ?? "batter" : "batter";
-  const bowler = b.bowler_id ? players[b.bowler_id]?.player_name ?? "bowler" : "bowler";
+function CommentaryLine({ b, players }: { b: Ball; players: Record<string, Member> }) {
+  const batterName = b.batter_id ? players[b.batter_id]?.player_name ?? "batter" : "batter";
+  const bowlerName = b.bowler_id ? players[b.bowler_id]?.player_name ?? "bowler" : "bowler";
+  const Batter = <PlayerLink id={b.batter_id} name={batterName} />;
+  const Bowler = <PlayerLink id={b.bowler_id} name={bowlerName} />;
+
   if (b.is_wicket) {
-    const dismissed = b.dismissed_player_id ? players[b.dismissed_player_id]?.player_name : batter;
-    return `OUT! ${bowler} to ${dismissed} — ${b.wicket_type ?? "wicket"}.`;
+    const dismissedId = b.dismissed_player_id ?? b.batter_id;
+    const dismissedName = b.dismissed_player_id ? players[b.dismissed_player_id]?.player_name ?? batterName : batterName;
+    return <>OUT! {Bowler} to <PlayerLink id={dismissedId} name={dismissedName} /> — {b.wicket_type ?? "wicket"}.</>;
   }
-  if (b.extra_type === "wide") return `${bowler} to ${batter}, wide. ${b.runs} run${b.runs === 1 ? "" : "s"}.`;
-  if (b.extra_type === "noball") return `${bowler} to ${batter}, NO BALL. ${b.runs} run${b.runs === 1 ? "" : "s"}.`;
-  if (b.extra_type === "bye") return `${bowler} to ${batter}, ${b.runs} bye${b.runs === 1 ? "" : "s"}.`;
-  if (b.extra_type === "legbye") return `${bowler} to ${batter}, ${b.runs} leg-bye${b.runs === 1 ? "" : "s"}.`;
-  if (b.runs === 6) return `SIX! ${bowler} to ${batter}, launched into the stands!`;
-  if (b.runs === 4) return `FOUR! ${bowler} to ${batter}, finds the boundary!`;
-  if (b.runs === 0) return `${bowler} to ${batter}, dot ball.`;
-  return `${bowler} to ${batter}, ${b.runs} run${b.runs === 1 ? "" : "s"}.`;
+  if (b.extra_type === "wide") return <>{Bowler} to {Batter}, wide. {b.runs} run{b.runs === 1 ? "" : "s"}.</>;
+  if (b.extra_type === "noball") return <>{Bowler} to {Batter}, NO BALL. {b.runs} run{b.runs === 1 ? "" : "s"}.</>;
+  if (b.extra_type === "bye") return <>{Bowler} to {Batter}, {b.runs} bye{b.runs === 1 ? "" : "s"}.</>;
+  if (b.extra_type === "legbye") return <>{Bowler} to {Batter}, {b.runs} leg-bye{b.runs === 1 ? "" : "s"}.</>;
+  if (b.runs === 6) return <>SIX! {Bowler} to {Batter}, launched into the stands!</>;
+  if (b.runs === 4) return <>FOUR! {Bowler} to {Batter}, finds the boundary!</>;
+  if (b.runs === 0) return <>{Bowler} to {Batter}, dot ball.</>;
+  return <>{Bowler} to {Batter}, {b.runs} run{b.runs === 1 ? "" : "s"}.</>;
+}
+
+/* ─── Over-by-over timeline: powers the over-summary card + spell/arrival captions ─── */
+type OverEntry = {
+  overNumber: number; balls: Ball[]; isComplete: boolean;
+  runsInOver: number; wicketsInOver: number; cumRuns: number; cumWkts: number;
+  bowler: { id: string; name: string } | null;
+  bowlerFigures: { overs: string; runs: number; wkts: number };
+  batters: { id: string; name: string; runs: number; balls: number }[];
+};
+
+function buildOverTimeline(ascBalls: Ball[], players: Record<string, Member>) {
+  const overs: OverEntry[] = [];
+  const batRun = new Map<string, { runs: number; balls: number }>();
+  const bowlRun = new Map<string, { runs: number; legal: number; wkts: number }>();
+  const firstBowlerBall = new Map<string, string>();
+  const firstBatterBall = new Map<string, string>();
+  let cumRuns = 0, cumWkts = 0;
+
+  ascBalls.forEach((b) => {
+    if (b.bowler_id && !firstBowlerBall.has(b.bowler_id)) firstBowlerBall.set(b.bowler_id, b.id);
+    if (b.batter_id && !firstBatterBall.has(b.batter_id)) firstBatterBall.set(b.batter_id, b.id);
+
+    const ballRuns = b.runs + (b.extra_type === "wide" || b.extra_type === "noball" ? 1 : 0);
+    cumRuns += ballRuns;
+    if (b.is_wicket) cumWkts += 1;
+
+    if (b.batter_id) {
+      const row = batRun.get(b.batter_id) ?? { runs: 0, balls: 0 };
+      if (b.extra_type !== "wide") row.balls += 1;
+      const isBatRun = b.extra_type !== "wide" && b.extra_type !== "bye" && b.extra_type !== "legbye";
+      if (isBatRun) row.runs += b.extra_type === "noball" ? b.runs - 1 : b.runs;
+      batRun.set(b.batter_id, row);
+    }
+    if (b.bowler_id) {
+      const row = bowlRun.get(b.bowler_id) ?? { runs: 0, legal: 0, wkts: 0 };
+      row.runs += ballRuns;
+      if (b.extra_type !== "wide" && b.extra_type !== "noball") row.legal += 1;
+      if (b.is_wicket && b.wicket_type !== "runout" && b.wicket_type !== "retired_hurt") row.wkts += 1;
+      bowlRun.set(b.bowler_id, row);
+    }
+
+    let g = overs[overs.length - 1];
+    if (!g || g.overNumber !== b.over_number) {
+      g = { overNumber: b.over_number, balls: [], isComplete: false, runsInOver: 0, wicketsInOver: 0, cumRuns: 0, cumWkts: 0, bowler: null, bowlerFigures: { overs: "0.0", runs: 0, wkts: 0 }, batters: [] };
+      overs.push(g);
+    }
+    g.balls.push(b);
+    g.runsInOver += ballRuns;
+    if (b.is_wicket) g.wicketsInOver += 1;
+    g.cumRuns = cumRuns;
+    g.cumWkts = cumWkts;
+    if (b.bowler_id) {
+      const fig = bowlRun.get(b.bowler_id)!;
+      g.bowler = { id: b.bowler_id, name: players[b.bowler_id]?.player_name ?? "—" };
+      g.bowlerFigures = { overs: `${Math.floor(fig.legal / 6)}.${fig.legal % 6}`, runs: fig.runs, wkts: fig.wkts };
+    }
+    const crease = [b.batter_id, b.non_striker_id].filter(Boolean) as string[];
+    g.batters = crease.map((id) => ({ id, name: players[id]?.player_name ?? "—", runs: batRun.get(id)?.runs ?? 0, balls: batRun.get(id)?.balls ?? 0 }));
+  });
+
+  overs.forEach((g) => {
+    const legal = g.balls.filter((b) => b.extra_type !== "wide" && b.extra_type !== "noball").length;
+    g.isComplete = legal >= 6;
+  });
+
+  return { overs, firstBowlerBall, firstBatterBall };
+}
+
+function OverSummaryCard({ over }: { over: OverEntry }) {
+  return (
+    <div className="rounded-xl border border-border bg-muted/30 px-4 py-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-baseline gap-2">
+          <span className="font-display text-sm">Over {over.overNumber + 1}</span>
+          <span className="text-xs text-muted-foreground tabular-nums">{over.cumRuns}-{over.cumWkts}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          {over.balls.map((b) => <BallPill key={b.id} b={b} />)}
+          <span className="ml-1 text-[11px] text-muted-foreground">({over.runsInOver} run{over.runsInOver === 1 ? "" : "s"})</span>
+        </div>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-x-6 gap-y-1 text-xs text-muted-foreground">
+        <div className="flex flex-wrap gap-x-4">
+          {over.batters.map((bat) => (
+            <span key={bat.id}><PlayerLink id={bat.id} name={bat.name} className="font-medium text-foreground" /> {bat.runs} ({bat.balls})</span>
+          ))}
+        </div>
+        {over.bowler && (
+          <span>
+            <PlayerLink id={over.bowler.id} name={over.bowler.name} className="font-medium text-foreground" />{" "}
+            {over.bowlerFigures.overs}-0-{over.bowlerFigures.runs}-{over.bowlerFigures.wkts}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function InningsAnalysisCard({ inn, team, batting, bowling, opponentTarget }: {
+  inn: Innings; team: Team;
+  batting: BatLine[]; bowling: BowlLine[]; opponentTarget: number | null;
+}) {
+  if (!batting.length) return null;
+  const overs = `${Math.floor(inn.balls / 6)}.${inn.balls % 6}`;
+  const rr = inn.balls > 0 ? ((inn.runs / inn.balls) * 6).toFixed(2) : "0.00";
+  const topBat = [...batting].sort((a, b) => b.runs - a.runs)[0];
+  const topBowl = bowling.length ? [...bowling].sort((a, b) => b.wkts - a.wkts || a.runs - b.runs)[0] : null;
+
+  let chaseLine: string | null = null;
+  if (opponentTarget != null) {
+    if (inn.runs >= opponentTarget) {
+      chaseLine = `Chasing ${opponentTarget}, ${team.name} got over the line with ${10 - inn.wickets} wicket${10 - inn.wickets === 1 ? "" : "s"} in hand — a well-controlled run chase.`;
+    } else {
+      const short = opponentTarget - inn.runs;
+      chaseLine = inn.wickets >= 10
+        ? `Chasing ${opponentTarget}, ${team.name} were bowled out ${short} run${short === 1 ? "" : "s"} short of the target.`
+        : `Chasing ${opponentTarget}, ${team.name} finished on ${inn.runs}-${inn.wickets}, falling ${short} run${short === 1 ? "" : "s"} short.`;
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-border overflow-hidden">
+      <div className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-white" style={{ background: CB.green }}>
+        Innings Analysis · {team.name}
+      </div>
+      <div className="px-4 py-3 bg-card text-sm leading-relaxed text-foreground space-y-1.5">
+        <p>
+          {team.name} finished on <b>{inn.runs}-{inn.wickets}</b> from {overs} overs (RR {rr}).{" "}
+          {topBat && (
+            <><PlayerLink id={topBat.id} name={topBat.name} className="font-semibold" /> top-scored with {topBat.runs} off {topBat.balls} balls
+            {topBat.fours + topBat.sixes > 0 ? ` (${topBat.fours}x4, ${topBat.sixes}x6)` : ""}.</>
+          )}
+        </p>
+        {topBowl && topBowl.wkts > 0 && (
+          <p>
+            With the ball, <PlayerLink id={topBowl.id} name={topBowl.name} className="font-semibold" /> was the standout, picking up {topBowl.wkts} wicket{topBowl.wkts === 1 ? "" : "s"} for {topBowl.runs} runs.
+          </p>
+        )}
+        {chaseLine && <p>{chaseLine}</p>}
+      </div>
+    </div>
+  );
 }
 
 function CommentaryTab({ innings, balls, players, match }: { innings: Innings[]; balls: Ball[]; players: Record<string, Member>; match: Match }) {
@@ -625,23 +800,57 @@ function CommentaryTab({ innings, balls, players, match }: { innings: Innings[];
     <div className="space-y-5">
       {[...innings].reverse().map((inn) => {
         const team = inn.batting_team_id === match.team_a.id ? match.team_a : match.team_b;
-        const inBs = [...balls.filter((b) => b.innings_id === inn.id)].reverse();
-        if (!inBs.length) return null;
+        const ascBalls = balls.filter((b) => b.innings_id === inn.id);
+        if (!ascBalls.length) return null;
+        const { overs, firstBowlerBall, firstBatterBall } = buildOverTimeline(ascBalls, players);
+        const { batting, bowling } = buildInningsTables(ascBalls, players);
+        const isInningsOver = inn.wickets >= 10 || inn.balls >= match.overs * 6
+          || innings.some((x) => x.innings_no > inn.innings_no) || match.status === "completed";
+        const oversDesc = [...overs].reverse();
+
         return (
-          <section key={inn.id}>
+          <section key={inn.id} className="space-y-3">
             <div className="mb-2 px-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{team.name} · Innings {inn.innings_no}</div>
-            <div className="overflow-hidden rounded-xl border border-border bg-card divide-y divide-border">
-              {inBs.map((b) => (
-                <div key={b.id} className="flex items-start gap-3 px-4 py-3">
-                  <span className="w-10 shrink-0 font-mono text-[10px] text-muted-foreground pt-0.5">{b.over_number}.{b.ball_in_over}</span>
-                  <BallPill b={b} />
-                  <p className={`text-sm flex-1 ${b.is_wicket ? "font-semibold text-destructive" : b.runs >= 6 ? "font-semibold" : "text-foreground"}`}
-                    style={b.runs >= 6 && !b.is_wicket ? { color: CB.orangeText } : {}}>
-                    {commentaryLine(b, players)}
-                  </p>
+
+            {isInningsOver && (
+              <InningsAnalysisCard inn={inn} team={team} batting={batting} bowling={bowling} opponentTarget={inn.target} />
+            )}
+
+            {oversDesc.map((over) => (
+              <div key={over.overNumber} className="space-y-2">
+                {over.isComplete && <OverSummaryCard over={over} />}
+                <div className="overflow-hidden rounded-xl border border-border bg-card divide-y divide-border">
+                  {[...over.balls].reverse().map((b) => {
+                    const bowlerIntro = b.bowler_id && firstBowlerBall.get(b.bowler_id) === b.id ? players[b.bowler_id] : null;
+                    const batterIntro = b.batter_id && firstBatterBall.get(b.batter_id) === b.id ? players[b.batter_id] : null;
+                    return (
+                      <div key={b.id} className="px-4 py-3">
+                        <div className="flex items-start gap-3">
+                          <span className="w-10 shrink-0 font-mono text-[10px] text-muted-foreground pt-0.5">{b.over_number}.{b.ball_in_over}</span>
+                          <BallPill b={b} />
+                          <p className={`text-sm flex-1 ${b.is_wicket ? "font-semibold text-destructive" : b.runs >= 6 ? "font-semibold" : "text-foreground"}`}
+                            style={b.runs >= 6 && !b.is_wicket ? { color: CB.orangeText } : {}}>
+                            <CommentaryLine b={b} players={players} />
+                          </p>
+                        </div>
+                        {bowlerIntro && (
+                          <p className="mt-1.5 pl-[3.25rem] text-xs font-semibold text-foreground">
+                            <PlayerLink id={bowlerIntro.id} name={bowlerIntro.player_name} />
+                            {bowlerIntro.bowling_style ? `, ${bowlerIntro.bowling_style}` : ""}, comes into the attack
+                          </p>
+                        )}
+                        {batterIntro && (
+                          <p className="mt-1.5 pl-[3.25rem] text-xs font-semibold text-foreground">
+                            <PlayerLink id={batterIntro.id} name={batterIntro.player_name} />
+                            {batterIntro.batting_style ? `, ${batterIntro.batting_style}` : ""}, comes to the crease
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </section>
         );
       })}
@@ -817,7 +1026,9 @@ Rules:
               </div>
             )}
             <div>
-              <div className="font-display text-xl">{motmProfile?.full_name ?? motmMember.player_name}</div>
+              <div className="font-display text-xl">
+                <PlayerLink id={motmMember.id} name={motmProfile?.full_name ?? motmMember.player_name} />
+              </div>
               {motmProfile?.full_name && motmProfile.full_name !== motmMember.player_name && (
                 <div className="text-xs text-muted-foreground">{motmMember.player_name}</div>
               )}
@@ -835,7 +1046,7 @@ Rules:
             : topBatters.map((r, i) => (
               <div key={r.id} className={`flex items-center gap-3 px-4 py-2.5 border-b border-border/50 ${i % 2 === 1 ? "bg-muted/20" : "bg-card"}`}>
                 <span className="text-xs text-muted-foreground w-4">{i + 1}</span>
-                <span className="flex-1 text-sm font-medium">{r.name}</span>
+                <span className="flex-1 text-sm font-medium"><PlayerLink id={r.id} name={r.name} /></span>
                 <span className="font-display text-lg tabular-nums" style={{ color: CB.orangeText }}>{r.runs}</span>
               </div>
             ))}
@@ -847,7 +1058,7 @@ Rules:
             : topBowlers.map((r, i) => (
               <div key={r.id} className={`flex items-center gap-3 px-4 py-2.5 border-b border-border/50 ${i % 2 === 1 ? "bg-muted/20" : "bg-card"}`}>
                 <span className="text-xs text-muted-foreground w-4">{i + 1}</span>
-                <span className="flex-1 text-sm font-medium">{r.name}</span>
+                <span className="flex-1 text-sm font-medium"><PlayerLink id={r.id} name={r.name} /></span>
                 <span className="font-display text-lg tabular-nums" style={{ color: CB.green }}>{r.wkts}W</span>
               </div>
             ))}
@@ -993,12 +1204,14 @@ function CbCardHeader({ label }: { label: string }) {
     </div>
   );
 }
-function CbPlayerCell({ label, name, accent }: { label: string; name?: string | null; accent?: boolean }) {
+function CbPlayerCell({ label, name, id, accent }: { label: string; name?: string | null; id?: string | null; accent?: boolean }) {
   return (
     <div className={`px-3 py-3 ${accent ? "bg-primary/5" : ""}`}>
       <div className="text-[9px] uppercase tracking-widest text-muted-foreground">{label}</div>
       <div className={`mt-0.5 truncate font-semibold text-sm ${accent ? "" : "text-foreground"}`}
-        style={accent ? { color: CB.orangeText } : {}}>{name ?? "—"}</div>
+        style={accent ? { color: CB.orangeText } : {}}>
+        <PlayerLink id={id} name={name} />
+      </div>
     </div>
   );
 }
