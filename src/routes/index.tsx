@@ -132,7 +132,9 @@ function Landing() {
             <BestPlayers />
             <BestStrikers />
             <MVPLeaderboard />
+            <PostsSection />
             <RecentPerformances />
+            <BlogSection />
           </>
         ) : (
           <div className="rounded-2xl border border-border bg-card p-10 text-center">
@@ -168,16 +170,6 @@ function Landing() {
           </div>
         </section>
       )}
-
-      {/* ── Blog / News (public) ── */}
-      <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6">
-        <BlogSection />
-      </div>
-
-      {/* ── Optional Updates (Instagram-style posts, public) ── */}
-      <div className="py-4">
-        <PostsSection />
-      </div>
 
       {/* ── Dark footer ── */}
       <footer style={{ background: "#0f172a" }}>
