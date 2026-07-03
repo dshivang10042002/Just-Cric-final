@@ -108,9 +108,39 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 });
 
 function RootShell({ children }: { children: ReactNode }) {
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "SportsOrganization",
+        "@id": "https://justcric.in/#organization",
+        name: "JustCric",
+        url: "https://justcric.in",
+        logo: "https://justcric.in/logo.png",
+        description:
+          "JustCric is the free cricket scoring & community app for local, club and corporate cricket across India.",
+        sport: "Cricket",
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://justcric.in/#website",
+        name: "JustCric",
+        url: "https://justcric.in",
+        publisher: { "@id": "https://justcric.in/#organization" },
+      },
+    ],
+  };
+
   return (
     <html lang="en">
       <head>
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" href="/favicon.png" type="image/png" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
         <HeadContent />
       </head>
       <body>
