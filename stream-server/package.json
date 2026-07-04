@@ -1,0 +1,17 @@
+{
+  "name": "justcric-ingest-server",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Relay: browser camera (WebSocket/webm) -> ffmpeg -> YouTube RTMP ingest, for one-click Go Live.",
+  "main": "ingest-server.js",
+  "scripts": {
+    "start": "node ingest-server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

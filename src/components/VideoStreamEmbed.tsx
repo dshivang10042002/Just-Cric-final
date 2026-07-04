@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getYouTubeEmbedUrl } from "@/utils/getYouTubeEmbedUrl";
 import { ExternalLink, Radio } from "lucide-react";
@@ -9,9 +9,11 @@ interface Props {
   matchId: string;
   initialStreamUrl: string | null;
   initialStatus: StreamStatus;
+  /** Optional live scorecard bar / wicket / new-batter cards rendered on top of the video. */
+  overlay?: ReactNode;
 }
 
-export function VideoStreamEmbed({ matchId, initialStreamUrl, initialStatus }: Props) {
+export function VideoStreamEmbed({ matchId, initialStreamUrl, initialStatus, overlay }: Props) {
   const [streamUrl, setStreamUrl] = useState<string | null>(initialStreamUrl);
   const [status, setStatus]       = useState<StreamStatus>(initialStatus);
 
@@ -71,6 +73,7 @@ export function VideoStreamEmbed({ matchId, initialStreamUrl, initialStatus }: P
           allow="autoplay; encrypted-media; picture-in-picture"
           allowFullScreen
         />
+        {status === "live" && overlay}
       </div>
     </div>
   );

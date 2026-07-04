@@ -442,6 +442,13 @@ function ScorePage() {
 
   const maxOversPerBowler = match ? Math.ceil(match.overs / 5) : 99;
 
+  // Combined lookup used to feed the live-broadcast overlay (scorecard bar, wicket & new-batter cards)
+  const overlayPlayers = useMemo(() => {
+    const map: Record<string, Member> = {};
+    [...battingSquad, ...bowlingSquad].forEach((p) => { map[p.id] = p; });
+    return map;
+  }, [battingSquad, bowlingSquad]);
+
   const load = useCallback(async () => {
     const { data: m } = await supabase
       .from("matches")
@@ -1066,9 +1073,15 @@ function ScorePage() {
           <p className="mt-1.5 text-center text-[11px] text-muted-foreground">Ends match with current score as result.</p>
         </div>
 
-        {/* ── YouTube Stream Link ── */}
+        {/* ── Go Live ── */}
         <div className="mt-4">
-          <AddStreamLink matchId={matchId} />
+          <AddStreamLink
+            matchId={matchId}
+            match={match}
+            innings={innings}
+            balls={balls}
+            players={overlayPlayers}
+          />
         </div>
       </main>
     </div>

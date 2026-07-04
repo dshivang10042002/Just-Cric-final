@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { FollowButton } from "@/components/FollowButton";
 import { Radio, Star, Zap, Loader2 } from "lucide-react";
 import { VideoStreamEmbed } from "@/components/VideoStreamEmbed";
+import { LiveBroadcastOverlay } from "@/components/live-overlay/LiveBroadcastOverlay";
 import { PlayerAvatarChip, RoleBadge } from "@/components/PlayerAvatarChip";
 
 /* ─── Player link — wraps a player's name so it opens their profile ─── */
@@ -306,6 +307,18 @@ function LiveTab({ match, currentInn, balls, players }: {
 
   return (
     <div className="space-y-3">
+      {/* Live video with CricHeroes/Hotstar-style scorecard overlay */}
+      {match.stream_status === "live" && match.stream_url && (
+        <VideoStreamEmbed
+          matchId={match.id}
+          initialStreamUrl={match.stream_url}
+          initialStatus={match.stream_status}
+          overlay={
+            <LiveBroadcastOverlay match={match} innings={currentInn} balls={balls} players={players} />
+          }
+        />
+      )}
+
       {/* At the crease — Cricbuzz green header card */}
       <CbCard>
         <CbCardHeader label={`Innings ${currentInn.innings_no} · At the crease`} />
