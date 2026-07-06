@@ -18,7 +18,12 @@ type MatchRow = {
   team_b: { name: string } | null;
 };
 type TourneyRow = { id: string; name: string; format: string; status: string };
-type PlayerRow = { id: string; username: string | null; full_name: string | null; avatar_url: string | null; city: string | null };
+type PlayerRow = {
+  id: string;
+  player_name: string;
+  jersey_number: number | null;
+  team: { name: string; jersey_color: string | null } | null;
+};
 
 function SearchPage() {
   const [q, setQ] = useState("");
@@ -60,9 +65,9 @@ function SearchPage() {
           .ilike("name", like)
           .limit(10),
         supabase
-          .from("profiles")
-          .select("id, username, full_name, avatar_url, city")
-          .or(`username.ilike.${like},full_name.ilike.${like}`)
+          .from("team_members")
+          .select("id, player_name, jersey_number, team:teams(name, jersey_color)")
+          .ilike("player_name", like)
           .limit(10),
       ]);
       if (!active) return;
@@ -120,18 +125,16 @@ function SearchPage() {
                   params={{ playerId: p.id }}
                   className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 shadow-elevate transition hover:border-primary/30"
                 >
-                  <div className="grid h-10 w-10 place-items-center overflow-hidden rounded-full bg-primary/10 text-sm font-display text-primary">
-                    {p.avatar_url ? (
-                      <img src={p.avatar_url} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      (p.full_name || p.username || "?").slice(0, 1).toUpperCase()
-                    )}
-                  </div>
+                  <span
+                    className="grid h-10 w-10 place-items-center rounded-full font-display text-sm text-white"
+                    style={{ backgroundColor: p.team?.jersey_color || "#003527" }}
+                  >
+                    {p.jersey_number ?? p.player_name.slice(0, 1).toUpperCase()}
+                  </span>
                   <div className="min-w-0">
-                    <div className="truncate font-medium">{p.full_name || p.username}</div>
+                    <div className="truncate font-medium">{p.player_name}</div>
                     <div className="truncate text-xs text-muted-foreground">
-                      {p.username ? `@${p.username}` : ""}
-                      {p.city ? ` · ${p.city}` : ""}
+                      {p.team?.name ?? "Free agent"}
                     </div>
                   </div>
                 </Link>
