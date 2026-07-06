@@ -8,23 +8,33 @@ function PostCard({ post, stacked = false }: { post: Post; stacked?: boolean }) 
   const multi = post.images.length > 1;
   const isVertical = post.post_type !== "square";
   const showCaption = post.post_type !== "vertical_no_caption";
+  const isNoCaption = post.post_type === "vertical_no_caption";
 
   // A caption longer than this is probably going to clamp to 3 lines —
   // used just to decide whether "Read more" is worth showing at all.
   const captionIsLong = (post.caption?.length ?? 0) > 110;
 
   const widthClass = stacked
-    ? (isVertical ? "w-full max-w-[320px] mx-auto sm:max-w-[380px]" : "w-full max-w-[420px] mx-auto")
+    ? (isNoCaption ? "w-full max-w-[260px] mx-auto" : isVertical ? "w-full max-w-[320px] mx-auto sm:max-w-[380px]" : "w-full max-w-[420px] mx-auto")
     : `shrink-0 snap-start ${isVertical ? "w-[220px] sm:w-[250px]" : "w-[280px] sm:w-[320px]"}`;
+
+  // No-caption vertical posts, when stacked, show the whole photo without
+  // cropping — object-cover was chopping off parts of whatever was uploaded.
+  const imageFitClass = stacked && isNoCaption ? "object-contain" : "object-cover";
 
   return (
     <div className={`overflow-hidden rounded-2xl border border-border bg-card shadow-elevate ${widthClass}`}>
+      {stacked && post.heading && (
+        <div className="border-b border-border px-3.5 py-2.5">
+          <h3 className="font-display text-sm sm:text-base leading-snug">{post.heading}</h3>
+        </div>
+      )}
       <div className={`relative w-full overflow-hidden bg-secondary ${isVertical ? "aspect-[9/16]" : "aspect-square"}`}>
         {post.images.length > 0 ? (
           <img
             src={post.images[idx]}
-            alt={post.caption ?? "Post image"}
-            className="h-full w-full object-cover"
+            alt={post.caption ?? post.heading ?? "Post image"}
+            className={`h-full w-full ${imageFitClass}`}
           />
         ) : (
           <div className="grid h-full w-full place-items-center text-muted-foreground">

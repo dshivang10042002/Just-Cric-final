@@ -26,6 +26,7 @@ export type Post = {
   created_at: string;
   post_type: PostType;
   layout: PostLayout;
+  heading: string | null;
 };
 
 /* ─── Slug helper ─── */

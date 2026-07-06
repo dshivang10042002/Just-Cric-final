@@ -9,6 +9,7 @@ import {
   type PostType,
 } from "@/lib/content";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -23,7 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Plus, Pencil, Trash2, ImagePlus, ArrowLeft, Loader2, X, Square, RectangleVertical, Ban } from "lucide-react";
 
-const EMPTY: Partial<Post> = { caption: "", images: [], is_published: false, post_type: "square", layout: "horizontal" };
+const EMPTY: Partial<Post> = { caption: "", images: [], is_published: false, post_type: "square", layout: "horizontal", heading: "" };
 
 const TYPE_INFO: Record<PostType, { label: string; description: string; icon: typeof Square }> = {
   square: { label: "Square post", description: "Classic square photo(s) with a caption (Read more if it's long)", icon: Square },
@@ -246,6 +247,20 @@ export function PostsAdminTab() {
               </button>
             </div>
           </div>
+
+          {editing.layout === "vertical" && (
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Heading
+              </label>
+              <Input
+                className="mt-1.5"
+                value={editing.heading ?? ""}
+                onChange={(e) => setEditing((prev) => ({ ...prev, heading: e.target.value }))}
+                placeholder="Shown above this post in the vertical feed"
+              />
+            </div>
+          )}
 
           <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
             <div>
