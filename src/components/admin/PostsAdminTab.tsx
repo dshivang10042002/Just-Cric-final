@@ -6,6 +6,7 @@ import {
   deletePost,
   uploadToBucket,
   type Post,
+  type PostType,
 } from "@/lib/content";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,13 +21,20 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Pencil, Trash2, ImagePlus, ArrowLeft, Loader2, X } from "lucide-react";
+import { Plus, Pencil, Trash2, ImagePlus, ArrowLeft, Loader2, X, Square, RectangleVertical, Ban } from "lucide-react";
 
-const EMPTY: Partial<Post> = { caption: "", images: [], is_published: false };
+const EMPTY: Partial<Post> = { caption: "", images: [], is_published: false, post_type: "square" };
+
+const TYPE_INFO: Record<PostType, { label: string; description: string; icon: typeof Square }> = {
+  square: { label: "Square post", description: "Classic square photo(s) with a caption (Read more if it's long)", icon: Square },
+  vertical: { label: "Vertical post", description: "Tall, portrait-style photo(s) with a caption (Read more if it's long)", icon: RectangleVertical },
+  vertical_no_caption: { label: "Vertical, no caption", description: "Tall, portrait-style photo(s) only — no caption at all", icon: Ban },
+};
 
 export function PostsAdminTab() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pickingType, setPickingType] = useState(false);
   const [editing, setEditing] = useState<Partial<Post> | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -43,7 +51,11 @@ export function PostsAdminTab() {
     load();
   }, []);
 
-  const startNew = () => setEditing({ ...EMPTY, images: [] });
+  const startNew = () => setPickingType(true);
+  const chooseType = (post_type: PostType) => {
+    setEditing({ ...EMPTY, images: [], post_type });
+    setPickingType(false);
+  };
   const startEdit = (p: Post) => setEditing({ ...p, images: [...p.images] });
 
   const handleUpload = async (files: FileList) => {
@@ -94,6 +106,40 @@ export function PostsAdminTab() {
     }
   };
 
+  if (pickingType) {
+    return (
+      <div className="max-w-2xl">
+        <button
+          onClick={() => setPickingType(false)}
+          className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted-foreground transition hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back to posts
+        </button>
+
+        <h3 className="mt-4 text-sm font-semibold">What kind of post is this?</h3>
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          {(Object.keys(TYPE_INFO) as PostType[]).map((t) => {
+            const info = TYPE_INFO[t];
+            const Icon = info.icon;
+            return (
+              <button
+                key={t}
+                onClick={() => chooseType(t)}
+                className="flex flex-col items-start gap-2 rounded-2xl border border-border bg-card p-4 text-left transition hover:border-primary hover:shadow-md"
+              >
+                <div className="grid h-9 w-9 place-items-center rounded-lg bg-primary/10 text-primary">
+                  <Icon className="h-5 w-5" />
+                </div>
+                <div className="text-sm font-semibold">{info.label}</div>
+                <div className="text-xs text-muted-foreground">{info.description}</div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   if (editing) {
     return (
       <div className="max-w-2xl">
@@ -105,6 +151,14 @@ export function PostsAdminTab() {
         </button>
 
         <div className="mt-4 space-y-5 rounded-2xl border border-border bg-card p-6">
+          <div className="flex items-center gap-2 text-xs font-semibold text-primary">
+            {(() => {
+              const Icon = TYPE_INFO[(editing.post_type ?? "square") as PostType].icon;
+              return <Icon className="h-3.5 w-3.5" />;
+            })()}
+            {TYPE_INFO[(editing.post_type ?? "square") as PostType].label}
+          </div>
+
           <div>
             <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Images
@@ -113,7 +167,7 @@ export function PostsAdminTab() {
               {(editing.images ?? []).map((url) => (
                 <div
                   key={url}
-                  className="relative h-20 w-20 overflow-hidden rounded-lg border border-border"
+                  className={`relative overflow-hidden rounded-lg border border-border ${editing.post_type === "square" ? "h-20 w-20" : "h-28 w-16"}`}
                 >
                   <img src={url} alt="" className="h-full w-full object-cover" />
                   <button
@@ -130,7 +184,7 @@ export function PostsAdminTab() {
                 type="button"
                 onClick={() => fileRef.current?.click()}
                 disabled={uploading}
-                className="grid h-20 w-20 place-items-center rounded-lg border border-dashed border-border text-muted-foreground transition hover:border-primary hover:text-primary"
+                className={`grid place-items-center rounded-lg border border-dashed border-border text-muted-foreground transition hover:border-primary hover:text-primary ${editing.post_type === "square" ? "h-20 w-20" : "h-28 w-16"}`}
               >
                 {uploading ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
@@ -154,18 +208,20 @@ export function PostsAdminTab() {
             </p>
           </div>
 
-          <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Caption
-            </label>
-            <Textarea
-              className="mt-1.5"
-              value={editing.caption ?? ""}
-              onChange={(e) => setEditing((prev) => ({ ...prev, caption: e.target.value }))}
-              placeholder="Write a caption…"
-              rows={3}
-            />
-          </div>
+          {editing.post_type !== "vertical_no_caption" && (
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Caption
+              </label>
+              <Textarea
+                className="mt-1.5"
+                value={editing.caption ?? ""}
+                onChange={(e) => setEditing((prev) => ({ ...prev, caption: e.target.value }))}
+                placeholder="Write a caption…"
+                rows={3}
+              />
+            </div>
+          )}
 
           <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
             <div>
@@ -211,7 +267,7 @@ export function PostsAdminTab() {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {posts.map((p) => (
             <div key={p.id} className="overflow-hidden rounded-xl border border-border bg-card">
-              <div className="relative aspect-square bg-secondary">
+              <div className={`relative bg-secondary ${p.post_type === "square" ? "aspect-square" : "aspect-[9/16]"}`}>
                 {p.images[0] && (
                   <img src={p.images[0]} alt="" className="h-full w-full object-cover" />
                 )}
@@ -225,11 +281,16 @@ export function PostsAdminTab() {
                 >
                   {p.is_published ? "Live" : "Draft"}
                 </span>
+                <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/60 px-1.5 py-0.5 text-[9px] font-semibold text-white">
+                  {TYPE_INFO[p.post_type ?? "square"].label}
+                </span>
               </div>
               <div className="p-2.5">
-                <p className="line-clamp-2 text-xs text-muted-foreground min-h-[2rem]">
-                  {p.caption || "—"}
-                </p>
+                {p.post_type !== "vertical_no_caption" && (
+                  <p className="line-clamp-2 text-xs text-muted-foreground min-h-[2rem]">
+                    {p.caption || "—"}
+                  </p>
+                )}
                 <div className="mt-2 flex gap-1.5">
                   <Button
                     variant="outline"

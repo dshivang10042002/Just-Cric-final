@@ -4,11 +4,18 @@ import { ChevronLeft, ChevronRight, ImagePlus, Heart } from "lucide-react";
 
 function PostCard({ post }: { post: Post }) {
   const [idx, setIdx] = useState(0);
+  const [expanded, setExpanded] = useState(false);
   const multi = post.images.length > 1;
+  const isVertical = post.post_type !== "square";
+  const showCaption = post.post_type !== "vertical_no_caption";
+
+  // A caption longer than this is probably going to clamp to 3 lines —
+  // used just to decide whether "Read more" is worth showing at all.
+  const captionIsLong = (post.caption?.length ?? 0) > 110;
 
   return (
-    <div className="w-[280px] sm:w-[320px] shrink-0 snap-start overflow-hidden rounded-2xl border border-border bg-card shadow-elevate">
-      <div className="relative aspect-square w-full overflow-hidden bg-secondary">
+    <div className={`shrink-0 snap-start overflow-hidden rounded-2xl border border-border bg-card shadow-elevate ${isVertical ? "w-[220px] sm:w-[250px]" : "w-[280px] sm:w-[320px]"}`}>
+      <div className={`relative w-full overflow-hidden bg-secondary ${isVertical ? "aspect-[9/16]" : "aspect-square"}`}>
         {post.images.length > 0 ? (
           <img
             src={post.images[idx]}
@@ -50,18 +57,36 @@ function PostCard({ post }: { post: Post }) {
           </>
         )}
       </div>
-      <div className="p-3.5">
-        <div className="flex items-center gap-1.5 text-muted-foreground">
-          <Heart className="h-4 w-4" />
-          <span className="text-[11px]">
-            {new Date(post.created_at).toLocaleDateString("en-IN", {
-              day: "numeric",
-              month: "short",
-            })}
-          </span>
+
+      {showCaption && (
+        <div className="p-3.5">
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <Heart className="h-4 w-4" />
+            <span className="text-[11px]">
+              {new Date(post.created_at).toLocaleDateString("en-IN", {
+                day: "numeric",
+                month: "short",
+              })}
+            </span>
+          </div>
+          {post.caption && (
+            <>
+              <p className={`mt-1.5 text-sm leading-snug whitespace-pre-wrap ${expanded ? "" : "line-clamp-3"}`}>
+                {post.caption}
+              </p>
+              {captionIsLong && (
+                <button
+                  type="button"
+                  onClick={() => setExpanded((v) => !v)}
+                  className="mt-0.5 text-[11px] font-semibold text-primary hover:underline"
+                >
+                  {expanded ? "Show less" : "Read more"}
+                </button>
+              )}
+            </>
+          )}
         </div>
-        {post.caption && <p className="mt-1.5 text-sm leading-snug whitespace-pre-wrap">{post.caption}</p>}
-      </div>
+      )}
     </div>
   );
 }

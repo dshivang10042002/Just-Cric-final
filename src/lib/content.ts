@@ -14,6 +14,8 @@ export type Blog = {
   updated_at: string;
 };
 
+export type PostType = "square" | "vertical" | "vertical_no_caption";
+
 export type Post = {
   id: string;
   caption: string | null;
@@ -21,6 +23,7 @@ export type Post = {
   is_published: boolean;
   author_id: string | null;
   created_at: string;
+  post_type: PostType;
 };
 
 /* ─── Slug helper ─── */
