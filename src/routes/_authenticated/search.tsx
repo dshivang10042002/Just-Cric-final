@@ -46,7 +46,7 @@ function SearchPage() {
     setLoading(true);
     const like = `%${term}%`;
     const run = async () => {
-      const [t, m, tr, p] = await Promise.all([
+      const [t, m, tr, byName, matchedProfiles] = await Promise.all([
         supabase
           .from("teams")
           .select("id, name, short_name, city, jersey_color")
@@ -64,17 +64,43 @@ function SearchPage() {
           .select("id, name, format, status")
           .ilike("name", like)
           .limit(10),
+        // Matches by the roster name typed when the player joined a team
         supabase
           .from("team_members")
           .select("id, player_name, jersey_number, team:teams(name, jersey_color)")
           .ilike("player_name", like)
           .limit(10),
+        // A player's roster name can differ from their account's real name/username
+        // (e.g. they joined a team by code and typed a nickname). Also match on the
+        // linked profile so search still finds them either way.
+        supabase
+          .from("profiles")
+          .select("id")
+          .or(`username.ilike.${like},full_name.ilike.${like}`)
+          .limit(10),
       ]);
+
+      let byProfile: { data: PlayerRow[] | null } = { data: [] };
+      const profileIds = (matchedProfiles.data ?? []).map((row) => row.id as string);
+      if (profileIds.length > 0) {
+        byProfile = await supabase
+          .from("team_members")
+          .select("id, player_name, jersey_number, team:teams(name, jersey_color)")
+          .in("profile_id", profileIds)
+          .limit(10);
+      }
+
       if (!active) return;
       setTeams((t.data as TeamRow[]) ?? []);
       setMatches((m.data as unknown as MatchRow[]) ?? []);
       setTourneys((tr.data as TourneyRow[]) ?? []);
-      setPlayers((p.data as PlayerRow[]) ?? []);
+
+      const mergedPlayers = new Map<string, PlayerRow>();
+      [...((byName.data as PlayerRow[]) ?? []), ...((byProfile.data as PlayerRow[]) ?? [])].forEach((row) => {
+        mergedPlayers.set(row.id, row);
+      });
+      setPlayers(Array.from(mergedPlayers.values()).slice(0, 10));
+
       setLoading(false);
     };
     const timer = setTimeout(run, 250);
