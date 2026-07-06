@@ -15,6 +15,7 @@ export type Blog = {
 };
 
 export type PostType = "square" | "vertical" | "vertical_no_caption";
+export type PostLayout = "horizontal" | "vertical";
 
 export type Post = {
   id: string;
@@ -24,6 +25,7 @@ export type Post = {
   author_id: string | null;
   created_at: string;
   post_type: PostType;
+  layout: PostLayout;
 };
 
 /* ─── Slug helper ─── */

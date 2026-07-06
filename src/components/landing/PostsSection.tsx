@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { fetchPublishedPosts, type Post } from "@/lib/content";
 import { ChevronLeft, ChevronRight, ImagePlus, Heart } from "lucide-react";
 
-function PostCard({ post }: { post: Post }) {
+function PostCard({ post, stacked = false }: { post: Post; stacked?: boolean }) {
   const [idx, setIdx] = useState(0);
   const [expanded, setExpanded] = useState(false);
   const multi = post.images.length > 1;
@@ -13,8 +13,12 @@ function PostCard({ post }: { post: Post }) {
   // used just to decide whether "Read more" is worth showing at all.
   const captionIsLong = (post.caption?.length ?? 0) > 110;
 
+  const widthClass = stacked
+    ? (isVertical ? "w-full max-w-[320px] mx-auto sm:max-w-[380px]" : "w-full max-w-[420px] mx-auto")
+    : `shrink-0 snap-start ${isVertical ? "w-[220px] sm:w-[250px]" : "w-[280px] sm:w-[320px]"}`;
+
   return (
-    <div className={`shrink-0 snap-start overflow-hidden rounded-2xl border border-border bg-card shadow-elevate ${isVertical ? "w-[220px] sm:w-[250px]" : "w-[280px] sm:w-[320px]"}`}>
+    <div className={`overflow-hidden rounded-2xl border border-border bg-card shadow-elevate ${widthClass}`}>
       <div className={`relative w-full overflow-hidden bg-secondary ${isVertical ? "aspect-[9/16]" : "aspect-square"}`}>
         {post.images.length > 0 ? (
           <img
@@ -106,6 +110,9 @@ export function PostsSection() {
 
   if (!loading && posts.length === 0) return null;
 
+  const horizontalPosts = posts.filter((p) => p.layout !== "vertical");
+  const verticalPosts = posts.filter((p) => p.layout === "vertical");
+
   return (
     <section>
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
@@ -116,24 +123,26 @@ export function PostsSection() {
               Snapshots from the JustCric community
             </p>
           </div>
-          <div className="hidden sm:flex gap-2">
-            <button
-              type="button"
-              aria-label="Scroll left"
-              onClick={() => scrollerRef.current?.scrollBy({ left: -320, behavior: "smooth" })}
-              className="grid h-8 w-8 place-items-center rounded-full border border-border bg-card transition hover:bg-secondary"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              aria-label="Scroll right"
-              onClick={() => scrollerRef.current?.scrollBy({ left: 320, behavior: "smooth" })}
-              className="grid h-8 w-8 place-items-center rounded-full border border-border bg-card transition hover:bg-secondary"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
+          {horizontalPosts.length > 0 && (
+            <div className="hidden sm:flex gap-2">
+              <button
+                type="button"
+                aria-label="Scroll left"
+                onClick={() => scrollerRef.current?.scrollBy({ left: -320, behavior: "smooth" })}
+                className="grid h-8 w-8 place-items-center rounded-full border border-border bg-card transition hover:bg-secondary"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                aria-label="Scroll right"
+                onClick={() => scrollerRef.current?.scrollBy({ left: 320, behavior: "smooth" })}
+                className="grid h-8 w-8 place-items-center rounded-full border border-border bg-card transition hover:bg-secondary"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -155,16 +164,30 @@ export function PostsSection() {
           </div>
         </div>
       ) : (
-        <div
-          ref={scrollerRef}
-          className="no-scrollbar flex gap-4 overflow-x-auto scroll-smooth snap-x snap-mandatory px-4 pb-2 sm:px-6"
-          style={{ scrollPaddingLeft: "1rem" }}
-        >
-          {posts.map((p) => (
-            <PostCard key={p.id} post={p} />
-          ))}
-          <div className="shrink-0 w-1" />
-        </div>
+        <>
+          {/* Horizontal sliding carousel — default layout */}
+          {horizontalPosts.length > 0 && (
+            <div
+              ref={scrollerRef}
+              className="no-scrollbar flex gap-4 overflow-x-auto scroll-smooth snap-x snap-mandatory px-4 pb-2 sm:px-6"
+              style={{ scrollPaddingLeft: "1rem" }}
+            >
+              {horizontalPosts.map((p) => (
+                <PostCard key={p.id} post={p} />
+              ))}
+              <div className="shrink-0 w-1" />
+            </div>
+          )}
+
+          {/* Vertical stacked feed — posts marked as "Vertical" layout in admin */}
+          {verticalPosts.length > 0 && (
+            <div className="mx-auto mt-6 max-w-7xl space-y-6 px-4 sm:px-6">
+              {verticalPosts.map((p) => (
+                <PostCard key={p.id} post={p} stacked />
+              ))}
+            </div>
+          )}
+        </>
       )}
     </section>
   );

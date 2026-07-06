@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Plus, Pencil, Trash2, ImagePlus, ArrowLeft, Loader2, X, Square, RectangleVertical, Ban } from "lucide-react";
 
-const EMPTY: Partial<Post> = { caption: "", images: [], is_published: false, post_type: "square" };
+const EMPTY: Partial<Post> = { caption: "", images: [], is_published: false, post_type: "square", layout: "horizontal" };
 
 const TYPE_INFO: Record<PostType, { label: string; description: string; icon: typeof Square }> = {
   square: { label: "Square post", description: "Classic square photo(s) with a caption (Read more if it's long)", icon: Square },
@@ -223,6 +223,30 @@ export function PostsAdminTab() {
             </div>
           )}
 
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Feed layout
+            </label>
+            <div className="mt-1.5 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setEditing((prev) => ({ ...prev, layout: "horizontal" }))}
+                className={`rounded-lg border px-3 py-2.5 text-left text-xs transition ${(editing.layout ?? "horizontal") === "horizontal" ? "border-primary bg-primary/5 font-semibold text-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}
+              >
+                <div className="font-semibold">Horizontal</div>
+                <div className="mt-0.5 text-[11px] opacity-80">Slides left-right with the other posts</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditing((prev) => ({ ...prev, layout: "vertical" }))}
+                className={`rounded-lg border px-3 py-2.5 text-left text-xs transition ${editing.layout === "vertical" ? "border-primary bg-primary/5 font-semibold text-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}
+              >
+                <div className="font-semibold">Vertical</div>
+                <div className="mt-0.5 text-[11px] opacity-80">Stacked full-width, below the slider</div>
+              </button>
+            </div>
+          </div>
+
           <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
             <div>
               <p className="text-sm font-medium">Published</p>
@@ -281,8 +305,15 @@ export function PostsAdminTab() {
                 >
                   {p.is_published ? "Live" : "Draft"}
                 </span>
-                <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/60 px-1.5 py-0.5 text-[9px] font-semibold text-white">
-                  {TYPE_INFO[p.post_type ?? "square"].label}
+                <span className="absolute bottom-1.5 left-1.5 flex gap-1">
+                  <span className="rounded-full bg-black/60 px-1.5 py-0.5 text-[9px] font-semibold text-white">
+                    {TYPE_INFO[p.post_type ?? "square"].label}
+                  </span>
+                  {p.layout === "vertical" && (
+                    <span className="rounded-full bg-primary/80 px-1.5 py-0.5 text-[9px] font-semibold text-white">
+                      Stacked
+                    </span>
+                  )}
                 </span>
               </div>
               <div className="p-2.5">
