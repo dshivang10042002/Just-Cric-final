@@ -12,9 +12,10 @@ type Row = {
   id: string; overs: number; venue: string | null;
   status: "scheduled" | "live" | "completed";
   result_text: string | null; created_at: string;
+  team_a_id: string; team_b_id: string; winner_team_id: string | null;
   team_a: { name: string; short_name: string | null; jersey_color: string | null } | null;
   team_b: { name: string; short_name: string | null; jersey_color: string | null } | null;
-  innings: { batting_team_id: string; runs: number; wickets: number; balls: number; target: number | null }[];
+  innings: { innings_no: number; batting_team_id: string; runs: number; wickets: number; balls: number; target: number | null }[];
 };
 
 function MatchesList() {
@@ -26,7 +27,7 @@ function MatchesList() {
       if (!u.user) return;
       const { data } = await supabase
         .from("matches")
-        .select("id, overs, venue, status, result_text, created_at, team_a:teams!matches_team_a_id_fkey(name, short_name, jersey_color), team_b:teams!matches_team_b_id_fkey(name, short_name, jersey_color), innings(batting_team_id, runs, wickets, balls, target)")
+        .select("id, overs, venue, status, result_text, created_at, team_a_id, team_b_id, winner_team_id, team_a:teams!matches_team_a_id_fkey(name, short_name, jersey_color), team_b:teams!matches_team_b_id_fkey(name, short_name, jersey_color), innings(innings_no, batting_team_id, runs, wickets, balls, target)")
         .eq("created_by", u.user.id)
         .order("created_at", { ascending: false });
       setRows((data as unknown as Row[]) ?? []);
@@ -108,15 +109,19 @@ function MatchesList() {
 
 /* ── Cricbuzz-style match card ── */
 function MatchCard({ m }: { m: Row }) {
-  const inn1 = m.innings?.[0] ?? null;
-  const inn2 = m.innings?.[1] ?? null;
-  const currentInn = inn2 ?? inn1;
+  // Match each innings to its actual batting team by ID, not array position —
+  // either team can bat first depending on the toss.
+  const innA = m.innings?.find((i) => i.batting_team_id === m.team_a_id) ?? null;
+  const innB = m.innings?.find((i) => i.batting_team_id === m.team_b_id) ?? null;
+  const sortedInnings = [...(m.innings ?? [])].sort((x, y) => x.innings_no - y.innings_no);
+  const currentInn = sortedInnings[sortedInnings.length - 1] ?? null;
   const ta = m.team_a;
   const tb = m.team_b;
   const linkTo = m.status === "completed" ? `/match/${m.id}` : `/matches/${m.id}/score`;
   const oversStr = (inn: { balls: number } | null) => inn ? `${Math.floor(inn.balls / 6)}.${inn.balls % 6}` : null;
-  const isBattingA = currentInn && ta && currentInn.batting_team_id !== (tb as { id?: string } | null)?.id;
-  const isBattingB = currentInn && tb && currentInn.batting_team_id === (tb as { id?: string } | null)?.id;
+  const isBattingA = !!currentInn && currentInn.batting_team_id === m.team_a_id;
+  const isBattingB = !!currentInn && currentInn.batting_team_id === m.team_b_id;
+  const noResult = m.status === "completed" && !m.winner_team_id;
 
   return (
     <a href={linkTo}
@@ -130,7 +135,10 @@ function MatchCard({ m }: { m: Row }) {
               <Radio className="h-2.5 w-2.5 animate-pulse" /> Live
             </span>
           )}
-          {m.status === "completed" && (
+          {m.status === "completed" && noResult && (
+            <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground shrink-0">No Result</span>
+          )}
+          {m.status === "completed" && !noResult && (
             <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground shrink-0">Result</span>
           )}
           {m.status === "scheduled" && (
@@ -155,12 +163,12 @@ function MatchCard({ m }: { m: Row }) {
             {ta?.name ?? "Team A"}
             {isBattingA && <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-primary align-middle" />}
           </span>
-          {inn1 ? (
+          {innA ? (
             <div className="text-right shrink-0">
               <span className={`font-display tabular-nums ${isBattingA ? "text-xl text-foreground" : "text-base text-muted-foreground"}`}>
-                {inn1.runs}<span className="text-muted-foreground font-normal text-sm">-{inn1.wickets}</span>
+                {innA.runs}<span className="text-muted-foreground font-normal text-sm">-{innA.wickets}</span>
               </span>
-              {oversStr(inn1) && <span className="ml-1.5 font-mono text-[10px] text-muted-foreground">({oversStr(inn1)})</span>}
+              {oversStr(innA) && <span className="ml-1.5 font-mono text-[10px] text-muted-foreground">({oversStr(innA)})</span>}
             </div>
           ) : <span className="text-xs text-muted-foreground italic shrink-0">Yet to bat</span>}
         </div>
@@ -175,12 +183,12 @@ function MatchCard({ m }: { m: Row }) {
             {tb?.name ?? "Team B"}
             {isBattingB && <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-primary align-middle" />}
           </span>
-          {inn2 ? (
+          {innB ? (
             <div className="text-right shrink-0">
               <span className={`font-display tabular-nums ${isBattingB ? "text-xl text-foreground" : "text-base text-muted-foreground"}`}>
-                {inn2.runs}<span className="text-muted-foreground font-normal text-sm">-{inn2.wickets}</span>
+                {innB.runs}<span className="text-muted-foreground font-normal text-sm">-{innB.wickets}</span>
               </span>
-              {oversStr(inn2) && <span className="ml-1.5 font-mono text-[10px] text-muted-foreground">({oversStr(inn2)})</span>}
+              {oversStr(innB) && <span className="ml-1.5 font-mono text-[10px] text-muted-foreground">({oversStr(innB)})</span>}
             </div>
           ) : <span className="text-xs text-muted-foreground italic shrink-0">Yet to bat</span>}
         </div>
