@@ -121,6 +121,30 @@ export const startYouTubeLive = createServerFn({ method: "POST" })
       { method: "POST" }
     );
 
+    // 4) Explicitly allow embedding. Every broadcast has an underlying video
+    // resource (same id), and that resource's `embeddable` flag — NOT anything
+    // on liveBroadcasts — controls whether it can play on justcric.in at all.
+    // The API defaults this to false, which is exactly why viewers were seeing
+    // "Playback on other websites has been disabled by the video owner."
+    try {
+      await yt(`videos?part=status`, accessToken, {
+        method: "PUT",
+        body: JSON.stringify({
+          id: broadcast.id,
+          status: {
+            privacyStatus: "public",
+            selfDeclaredMadeForKids: false,
+            embeddable: true,
+            publicStatsViewable: true,
+          },
+        }),
+      });
+    } catch (e) {
+      // Don't fail the whole Go Live flow over this — worst case, the person
+      // can still watch via the "Open on YouTube" link while this gets fixed.
+      console.error("[startYouTubeLive] failed to enable embedding:", e);
+    }
+
     const ingestion = stream.cdn.ingestionInfo;
     const rtmpUrl = ingestion.ingestionAddress as string;
     const streamKey = ingestion.streamName as string;
