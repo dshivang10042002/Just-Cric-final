@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getYouTubeEmbedUrl } from "@/utils/getYouTubeEmbedUrl";
 import { Link2, Radio, Square, Trash2, Copy, Check, ChevronDown } from "lucide-react";
 import { startYouTubeLive, stopYouTubeLive } from "@/lib/api/youtube-live.functions";
+import { VideoStreamEmbed } from "@/components/VideoStreamEmbed";
 import { useBrowserBroadcast } from "@/hooks/useBrowserBroadcast";
 import { useLiveOverlayEvents } from "@/components/live-overlay/useLiveOverlayEvents";
 import { batterFigures, bowlerFigures, currentRunRate, requiredRunRate, fmt1 } from "@/lib/live-overlay/liveStats";
@@ -301,6 +302,21 @@ export function AddStreamLink({ matchId, match, innings, balls = [], players = {
             <Radio className="h-4 w-4 animate-pulse" />
             {liveInfo ? `Live: "${liveInfo.title}"` : "Stream linked! Viewers can see it."}
           </div>
+
+          {/* Preview right here — no need to leave this page to check it's working.
+              YouTube can take up to ~30-60s after the camera connects before video
+              actually appears, even once this panel says "live". */}
+          <VideoStreamEmbed matchId={matchId} initialStreamUrl={url || liveInfo?.watchUrl || null} initialStatus="live" />
+          {(liveInfo?.watchUrl || url) && (
+            <a
+              href={liveInfo?.watchUrl || url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block text-center text-[11px] font-semibold text-primary underline underline-offset-2"
+            >
+              Open on YouTube in a new tab →
+            </a>
+          )}
 
           {broadcastLabel && (
             <div className={`rounded-lg border px-3 py-2 text-xs font-semibold ${broadcast.state === "error" ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-border bg-secondary/40 text-foreground"}`}>

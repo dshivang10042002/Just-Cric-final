@@ -59,11 +59,21 @@ export const startYouTubeLive = createServerFn({ method: "POST" })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: match, error: matchErr } = await (supabaseAdmin as any)
       .from("matches")
-      .select("id, created_by, venue, team_a:team_a_id(name), team_b:team_b_id(name)")
+      .select("id, created_by, venue, team_a_id, team_b_id, team_a:team_a_id(name), team_b:team_b_id(name)")
       .eq("id", data.matchId)
       .single();
     if (matchErr || !match) throw new Error("Match not found");
-    if (match.created_by !== context.userId) throw new Error("Only the match creator can start the stream");
+    if (match.created_by !== context.userId) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: membership } = await (supabaseAdmin as any)
+        .from("team_members")
+        .select("id")
+        .eq("profile_id", context.userId)
+        .in("team_id", [match.team_a_id, match.team_b_id])
+        .limit(1)
+        .maybeSingle();
+      if (!membership) throw new Error("Only players in this match's squads can start the stream");
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const m = match as any;
@@ -147,11 +157,21 @@ export const stopYouTubeLive = createServerFn({ method: "POST" })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: match, error: matchErr } = await (supabaseAdmin as any)
       .from("matches")
-      .select("id, created_by")
+      .select("id, created_by, team_a_id, team_b_id")
       .eq("id", data.matchId)
       .single();
     if (matchErr || !match) throw new Error("Match not found");
-    if (match.created_by !== context.userId) throw new Error("Only the match creator can end the stream");
+    if (match.created_by !== context.userId) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: membership } = await (supabaseAdmin as any)
+        .from("team_members")
+        .select("id")
+        .eq("profile_id", context.userId)
+        .in("team_id", [match.team_a_id, match.team_b_id])
+        .limit(1)
+        .maybeSingle();
+      if (!membership) throw new Error("Only players in this match's squads can end the stream");
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: creds } = await (supabaseAdmin as any)
