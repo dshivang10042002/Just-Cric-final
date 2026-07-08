@@ -59,6 +59,7 @@ export function AddStreamLink({ matchId, match, innings, balls = [], players = {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [autoError, setAutoError] = useState<string | null>(null);
   const [liveInfo, setLiveInfo] = useState<{ rtmpUrl: string; streamKey: string; watchUrl: string; title: string } | null>(null);
+  const [showManualSetup, setShowManualSetup] = useState(false);
 
   const broadcast = useBrowserBroadcast();
 
@@ -131,6 +132,7 @@ export function AddStreamLink({ matchId, match, innings, balls = [], players = {
   const goLive = async () => {
     setAutoError(null);
     setSaving(true);
+    setShowManualSetup(false);
     try {
       const result = await startYouTubeLive({ data: { matchId } });
       setLiveInfo(result);
@@ -306,8 +308,17 @@ export function AddStreamLink({ matchId, match, innings, balls = [], players = {
             </div>
           )}
 
-          {/* Advanced / OBS fallback — only surfaced if the camera broadcast didn't start */}
-          {liveInfo && broadcast.state !== "live" && (
+          {/* Advanced / OBS fallback — only surfaced if the camera broadcast failed,
+              and only after the person explicitly asks to see it. Never auto-shown. */}
+          {liveInfo && broadcast.state === "error" && !showManualSetup && (
+            <button
+              onClick={() => setShowManualSetup(true)}
+              className="text-[11px] font-semibold text-muted-foreground underline underline-offset-2"
+            >
+              Show manual setup (OBS/Streamlabs) instead
+            </button>
+          )}
+          {liveInfo && broadcast.state === "error" && showManualSetup && (
             <div className="space-y-2 rounded-lg border border-border bg-secondary/40 p-3">
               <p className="text-[11px] font-semibold text-muted-foreground">Advanced: stream with OBS/Streamlabs instead</p>
               <CopyField label="RTMP Server URL" value={liveInfo.rtmpUrl} />

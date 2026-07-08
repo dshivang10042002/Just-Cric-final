@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { FollowButton } from "@/components/FollowButton";
 import { Radio, Star, Zap, Loader2 } from "lucide-react";
 import { VideoStreamEmbed } from "@/components/VideoStreamEmbed";
+import { AddStreamLink } from "@/components/AddStreamLink";
 import { LiveBroadcastOverlay } from "@/components/live-overlay/LiveBroadcastOverlay";
 import { PlayerAvatarChip, RoleBadge } from "@/components/PlayerAvatarChip";
 
@@ -181,6 +182,11 @@ function PublicScorecard() {
     [innings, match?.current_innings],
   );
 
+  // Anyone in either team's squad for THIS match can start the stream —
+  // not just whoever opened the private scoring page.
+  const isSquadMember =
+    !!myMemberId && (squad.a.some((p) => p.id === myMemberId) || squad.b.some((p) => p.id === myMemberId));
+
   if (!match) return (
     <div className="min-h-screen bg-background"><Navbar />
       <div className="mx-auto max-w-3xl px-4 py-10"><div className="h-40 animate-pulse rounded-xl border border-border bg-card" /></div>
@@ -282,7 +288,7 @@ function PublicScorecard() {
       {/* ── Tab content ── */}
       <main className="mx-auto max-w-4xl px-4 py-4 sm:px-6" style={{ background: "#f5f5f5" }}>
         {tab === "info" && <InfoTab match={match} innings={innings} />}
-        {tab === "live" && <LiveTab match={match} innings={innings} currentInn={currentInn} balls={balls} players={players} />}
+        {tab === "live" && <LiveTab matchId={matchId} match={match} innings={innings} currentInn={currentInn} balls={balls} players={players} isSquadMember={isSquadMember} />}
         {tab === "scorecard" && <ScorecardTab match={match} innings={innings} balls={balls} players={players} />}
         {tab === "commentary" && <CommentaryTab innings={innings} balls={balls} players={players} match={match} />}
         {tab === "summary" && <SummaryTab match={match} innings={innings} balls={balls} players={players} motmMember={motmMember} motmProfile={motmProfile} myMemberId={myMemberId} myInsight={myInsight} loadingInsight={loadingInsight} setMyInsight={setMyInsight} setLoadingInsight={setLoadingInsight} matchId={matchId} />}
@@ -293,8 +299,9 @@ function PublicScorecard() {
 }
 
 /* ─── Live tab ─── */
-function LiveTab({ match, currentInn, balls, players }: {
-  match: Match; innings: Innings[]; currentInn: Innings | undefined; balls: Ball[]; players: Record<string, Member>;
+function LiveTab({ matchId, match, currentInn, balls, players, isSquadMember }: {
+  matchId: string; match: Match; innings: Innings[]; currentInn: Innings | undefined; balls: Ball[]; players: Record<string, Member>;
+  isSquadMember: boolean;
 }) {
   if (!currentInn) return <EmptyState msg="Match hasn't started yet." />;
 
@@ -304,19 +311,26 @@ function LiveTab({ match, currentInn, balls, players }: {
   const runRate = currentInn.balls > 0 ? ((currentInn.runs / currentInn.balls) * 6).toFixed(2) : "—";
   const reqRR = currentInn.target && (match.overs * 6 - currentInn.balls) > 0
     ? (((currentInn.target - currentInn.runs) / (match.overs * 6 - currentInn.balls)) * 6).toFixed(2) : null;
+  const streamIsLive = match.stream_status === "live" && !!match.stream_url;
 
   return (
     <div className="space-y-3">
       {/* Live video with CricHeroes/Hotstar-style scorecard overlay */}
-      {match.stream_status === "live" && match.stream_url && (
+      {streamIsLive && (
         <VideoStreamEmbed
           matchId={match.id}
-          initialStreamUrl={match.stream_url}
+          initialStreamUrl={match.stream_url as string}
           initialStatus={match.stream_status}
           overlay={
             <LiveBroadcastOverlay match={match} innings={currentInn} balls={balls} players={players} />
           }
         />
+      )}
+
+      {/* Any player in either squad can start the broadcast — not just whoever
+          has the private scoring page open. Hidden once a stream is already live. */}
+      {!streamIsLive && isSquadMember && match.status !== "completed" && (
+        <AddStreamLink matchId={matchId} match={match} innings={currentInn} balls={balls} players={players} />
       )}
 
       {/* At the crease — Cricbuzz green header card */}
