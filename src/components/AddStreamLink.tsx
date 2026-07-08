@@ -217,9 +217,9 @@ export function AddStreamLink({ matchId, match, innings, balls = [], players = {
   const broadcastLabel = useMemo(() => {
     if (broadcast.state === "starting") return "Opening camera…";
     if (broadcast.state === "live") return "Streaming from this device";
-    if (broadcast.state === "error") return "Camera stream failed — use Advanced/OBS below";
+    if (broadcast.state === "error") return broadcast.error || "Camera stream failed — use Advanced/OBS below";
     return null;
-  }, [broadcast.state]);
+  }, [broadcast.state, broadcast.error]);
 
   return (
     <div className="rounded-xl border border-border bg-card p-4 space-y-3">
