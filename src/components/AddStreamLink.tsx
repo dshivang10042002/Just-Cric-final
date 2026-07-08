@@ -1,21 +1,20 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getYouTubeEmbedUrl } from "@/utils/getYouTubeEmbedUrl";
-import { Link2, Radio, Square, Trash2, Copy, Check, ChevronDown } from "lucide-react";
+import { Link2, Radio, Square, Trash2, Copy, Check } from "lucide-react";
 import { startYouTubeLive, stopYouTubeLive } from "@/lib/api/youtube-live.functions";
 import { VideoStreamEmbed } from "@/components/VideoStreamEmbed";
-import { useBrowserBroadcast } from "@/hooks/useBrowserBroadcast";
-import { useLiveOverlayEvents } from "@/components/live-overlay/useLiveOverlayEvents";
-import { batterFigures, bowlerFigures, currentRunRate, requiredRunRate, fmt1 } from "@/lib/live-overlay/liveStats";
-import type { CanvasOverlayBar, CanvasPopup } from "@/lib/live-overlay/canvasOverlay";
 import type { OverlayBall, OverlayInnings, OverlayMatch, OverlayMember } from "@/lib/live-overlay/types";
 
 type StreamStatus = "idle" | "live" | "ended";
 
 interface Props {
   matchId: string;
-  /** Optional — when provided, the one-click "Go Live" streams this device's camera with the
-   *  scorecard overlay baked in. Without them the component still works for the manual/OBS flow. */
+  /** Accepted for backwards compatibility with callers that pass live match
+   *  context — currently unused here. Streaming this device's camera directly
+   *  (with a scorecard baked onto the video) needs an always-on ffmpeg relay
+   *  server, which isn't part of this deployment (Vercel + Supabase only, no
+   *  separately-hosted Node/Express process) — see stream-server/README.md. */
   match?: OverlayMatch | null;
   innings?: OverlayInnings | null;
   balls?: OverlayBall[];
@@ -51,68 +50,14 @@ function CopyField({ label, value, mask }: { label: string; value: string; mask?
   );
 }
 
-export function AddStreamLink({ matchId, match, innings, balls = [], players = {} }: Props) {
+export function AddStreamLink({ matchId }: Props) {
   const [url, setUrl]           = useState("");
   const [urlError, setUrlError] = useState<string | null>(null);
   const [status, setStatus]     = useState<StreamStatus>("idle");
   const [saving, setSaving]     = useState(false);
   const [manualMode, setManualMode] = useState(false);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [autoError, setAutoError] = useState<string | null>(null);
   const [liveInfo, setLiveInfo] = useState<{ rtmpUrl: string; streamKey: string; watchUrl: string; title: string } | null>(null);
-  const [showManualSetup, setShowManualSetup] = useState(false);
-
-  const broadcast = useBrowserBroadcast();
-
-  // ── Build the overlay data the camera broadcast bakes into the video ──
-  const { wicketEvent, newBatterEvent } = useLiveOverlayEvents(innings ?? null, balls, players);
-
-  const overlayRef = useRef<{ bar: CanvasOverlayBar | null; popup: CanvasPopup }>({ bar: null, popup: null });
-  useEffect(() => {
-    if (!match || !innings) { overlayRef.current = { bar: null, popup: null }; return; }
-    const battingTeam = match.team_a.id === innings.batting_team_id ? match.team_a : match.team_b;
-    const bowlingTeam = match.team_a.id === innings.bowling_team_id ? match.team_a : match.team_b;
-    const strikerStat = batterFigures(balls, innings.striker_id);
-    const nonStrikerStat = batterFigures(balls, innings.non_striker_id);
-    const bowlerStat = bowlerFigures(balls, innings.bowler_id);
-    const oversStr = `${Math.floor(innings.balls / 6)}.${innings.balls % 6}`;
-    const crr = currentRunRate(innings.runs, innings.balls);
-    const rrr = requiredRunRate(innings.target, innings.runs, match.overs, innings.balls);
-
-    const bar: CanvasOverlayBar = {
-      battingShort: battingTeam.short_name || battingTeam.name,
-      battingColor: battingTeam.jersey_color || "#003527",
-      runs: innings.runs, wickets: innings.wickets, oversStr,
-      crr: fmt1(crr), rrr: rrr != null ? fmt1(rrr) : null,
-      targetLine: innings.target != null
-        ? `Need ${Math.max(0, innings.target - innings.runs)} runs from ${Math.max(0, match.overs * 6 - innings.balls)} balls`
-        : null,
-      strikerName: innings.striker_id ? players[innings.striker_id]?.player_name ?? "—" : "—",
-      strikerRuns: strikerStat.runs, strikerBalls: strikerStat.balls,
-      nonStrikerName: innings.non_striker_id ? players[innings.non_striker_id]?.player_name ?? "—" : "—",
-      nonStrikerRuns: nonStrikerStat.runs, nonStrikerBalls: nonStrikerStat.balls,
-      bowlerName: innings.bowler_id ? players[innings.bowler_id]?.player_name ?? "—" : `vs ${bowlingTeam.short_name || bowlingTeam.name}`,
-      bowlerFigures: `${bowlerStat.oversStr}-${bowlerStat.runs}-${bowlerStat.wkts}`,
-    };
-
-    let popup: CanvasPopup = null;
-    if (wicketEvent) {
-      popup = {
-        kind: "wicket",
-        name: wicketEvent.dismissedPlayer?.player_name ?? "Batter",
-        runs: wicketEvent.runs, balls: wicketEvent.balls,
-        detail: `${wicketEvent.wicketTypeLabel}${wicketEvent.bowler ? ` · b ${wicketEvent.bowler.player_name}` : ""} · over ${wicketEvent.overAt}`,
-      };
-    } else if (newBatterEvent) {
-      popup = {
-        kind: "new_batter",
-        name: newBatterEvent.player?.player_name ?? "New Batter",
-        jersey: newBatterEvent.player?.jersey_number != null ? String(newBatterEvent.player.jersey_number) : null,
-      };
-    }
-
-    overlayRef.current = { bar, popup };
-  }, [match, innings, balls, players, wicketEvent, newBatterEvent]);
 
   // Load current stream state on mount
   useEffect(() => {
@@ -129,22 +74,16 @@ export function AddStreamLink({ matchId, match, innings, balls = [], players = {
       });
   }, [matchId]);
 
-  // ── One click: create the YouTube broadcast AND start streaming this device's camera into it ──
+  // ── Creates the YouTube broadcast; hands back RTMP URL + Stream Key for
+  //    whatever streaming app the scorer uses (OBS/Streamlabs/Larix/etc).
   const goLive = async () => {
     setAutoError(null);
     setSaving(true);
-    setShowManualSetup(false);
     try {
       const result = await startYouTubeLive({ data: { matchId } });
       setLiveInfo(result);
       setUrl(result.watchUrl);
       setStatus("live");
-
-      await broadcast.start({
-        rtmpUrl: result.rtmpUrl,
-        streamKey: result.streamKey,
-        getOverlay: () => overlayRef.current,
-      });
     } catch (e) {
       setAutoError(e instanceof Error ? e.message : "Couldn't start the broadcast");
     } finally {
@@ -154,7 +93,6 @@ export function AddStreamLink({ matchId, match, innings, balls = [], players = {
 
   const endStreamAuto = async () => {
     setSaving(true);
-    broadcast.stop();
     try {
       await stopYouTubeLive({ data: { matchId } });
     } catch (e) {
@@ -214,13 +152,6 @@ export function AddStreamLink({ matchId, match, innings, balls = [], players = {
     setLiveInfo(null);
   };
 
-  const broadcastLabel = useMemo(() => {
-    if (broadcast.state === "starting") return "Opening camera…";
-    if (broadcast.state === "live") return "Streaming from this device";
-    if (broadcast.state === "error") return broadcast.error || "Camera stream failed — use Advanced/OBS below";
-    return null;
-  }, [broadcast.state, broadcast.error]);
-
   return (
     <div className="rounded-xl border border-border bg-card p-4 space-y-3">
       <div className="flex items-center gap-2 text-sm font-semibold">
@@ -232,34 +163,25 @@ export function AddStreamLink({ matchId, match, innings, balls = [], players = {
         <div className="space-y-2">
           <button
             onClick={goLive}
-            disabled={saving || broadcast.state === "starting"}
+            disabled={saving}
             className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-destructive px-4 py-2.5 text-sm font-bold text-white transition active:scale-95 disabled:opacity-50"
           >
             <Radio className="h-4 w-4 animate-pulse" />
-            {saving || broadcast.state === "starting" ? "Starting broadcast…" : "Go Live 🔴"}
+            {saving ? "Starting broadcast…" : "Go Live 🔴"}
           </button>
           {autoError && <p className="text-xs text-destructive">{autoError}</p>}
-          {broadcast.error && <p className="text-xs text-destructive">{broadcast.error}</p>}
           <p className="text-[11px] text-muted-foreground">
-            One tap: streams this device's camera straight to your JustCric YouTube channel, with the live
-            scorecard baked right onto the video. No app, no stream key.
+            Creates a broadcast on your YouTube channel, titled with the two teams and venue. You'll get an
+            RTMP URL + Stream Key to paste into your streaming app (OBS, Streamlabs, Larix, etc.) — the
+            recording saves to your channel automatically once you end the stream.
           </p>
 
           <button
-            onClick={() => setAdvancedOpen((v) => !v)}
-            className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground underline underline-offset-2"
+            onClick={() => setManualMode(true)}
+            className="text-[11px] font-semibold text-muted-foreground underline underline-offset-2"
           >
-            <ChevronDown className={`h-3 w-3 transition-transform ${advancedOpen ? "rotate-180" : ""}`} />
-            Advanced: stream with OBS/Streamlabs instead
+            Already streaming elsewhere? Paste an existing link instead
           </button>
-          {advancedOpen && (
-            <button
-              onClick={() => setManualMode(true)}
-              className="block text-[11px] font-semibold text-muted-foreground underline underline-offset-2"
-            >
-              Already streaming elsewhere? Paste an existing link
-            </button>
-          )}
         </div>
       )}
 
@@ -290,7 +212,7 @@ export function AddStreamLink({ matchId, match, innings, balls = [], players = {
             onClick={() => setManualMode(false)}
             className="text-[11px] font-semibold text-muted-foreground underline underline-offset-2"
           >
-            ← Back to one-click Go Live
+            ← Back to Go Live
           </button>
         </div>
       )}
@@ -304,8 +226,8 @@ export function AddStreamLink({ matchId, match, innings, balls = [], players = {
           </div>
 
           {/* Preview right here — no need to leave this page to check it's working.
-              YouTube can take up to ~30-60s after the camera connects before video
-              actually appears, even once this panel says "live". */}
+              YouTube can take a little while to show video after your streaming
+              app connects, even once this panel says the broadcast was created. */}
           <VideoStreamEmbed matchId={matchId} initialStreamUrl={url || liveInfo?.watchUrl || null} initialStatus="live" />
           {(liveInfo?.watchUrl || url) && (
             <a
@@ -318,29 +240,14 @@ export function AddStreamLink({ matchId, match, innings, balls = [], players = {
             </a>
           )}
 
-          {broadcastLabel && (
-            <div className={`rounded-lg border px-3 py-2 text-xs font-semibold ${broadcast.state === "error" ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-border bg-secondary/40 text-foreground"}`}>
-              {broadcastLabel}
-            </div>
-          )}
-
-          {/* Advanced / OBS fallback — only surfaced if the camera broadcast failed,
-              and only after the person explicitly asks to see it. Never auto-shown. */}
-          {liveInfo && broadcast.state === "error" && !showManualSetup && (
-            <button
-              onClick={() => setShowManualSetup(true)}
-              className="text-[11px] font-semibold text-muted-foreground underline underline-offset-2"
-            >
-              Show manual setup (OBS/Streamlabs) instead
-            </button>
-          )}
-          {liveInfo && broadcast.state === "error" && showManualSetup && (
+          {liveInfo && (
             <div className="space-y-2 rounded-lg border border-border bg-secondary/40 p-3">
-              <p className="text-[11px] font-semibold text-muted-foreground">Advanced: stream with OBS/Streamlabs instead</p>
+              <p className="text-[11px] font-semibold text-muted-foreground">Paste these into your streaming app</p>
               <CopyField label="RTMP Server URL" value={liveInfo.rtmpUrl} />
               <CopyField label="Stream Key" value={liveInfo.streamKey} mask />
               <p className="text-[11px] text-muted-foreground">
-                Paste these into your streaming app — once it connects, you'll go live on YouTube automatically.
+                Once your streaming app (OBS, Streamlabs, Larix, etc.) connects with these, you'll go live on
+                YouTube automatically.
               </p>
             </div>
           )}

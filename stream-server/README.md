@@ -1,5 +1,22 @@
 # JustCric Go-Live ingest relay
 
+> **Status: not currently deployed / not wired into the live app.**
+> JustCric's actual deployment is Vercel (frontend + serverless functions)
+> + Supabase (database, auth, storage) only — no separately-hosted
+> Node/Express process. This relay needs exactly that (an always-on
+> ffmpeg process per live broadcast), so it can't run anywhere in the
+> current stack without standing up a separate host for it (Render,
+> Fly.io, a small VPS, etc.) — which is a real, ongoing piece of
+> infrastructure to own, not a one-time setup. Until/unless that's set
+> up and its URL is wired in, "Go Live" in the app uses the RTMP-key
+> handoff flow instead (create the YouTube broadcast, paste the key
+> into OBS/Streamlabs/Larix yourself) — that flow works today with zero
+> extra hosting, since it's just one HTTP call from a Vercel function.
+>
+> Everything below still describes what this piece does and how to run
+> it, in case browser-direct streaming (no external app) is wanted
+> badly enough later to justify hosting it.
+
 Browsers can send video over WebRTC/MediaRecorder but **cannot speak RTMP**,
 which is what YouTube's live ingest requires. This tiny always-on Node
 service is the bridge:
