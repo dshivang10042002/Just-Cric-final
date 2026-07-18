@@ -21,6 +21,7 @@ const INGEST_WS_URL = import.meta.env.VITE_INGEST_WS_URL as string | undefined;
 export function useBrowserBroadcast() {
   const [state, setState] = useState<BroadcastState>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
 
   const videoElRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -38,6 +39,7 @@ export function useBrowserBroadcast() {
     wsRef.current = null;
     mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
     mediaStreamRef.current = null;
+    setCameraStream(null);
     setState("idle");
   }, []);
 
@@ -57,6 +59,7 @@ export function useBrowserBroadcast() {
         audio: true,
       });
       mediaStreamRef.current = camera;
+      setCameraStream(camera);
 
       const video = document.createElement("video");
       video.muted = true;
@@ -118,5 +121,5 @@ export function useBrowserBroadcast() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { state, error, start, stop };
+  return { state, error, cameraStream, start, stop };
 }

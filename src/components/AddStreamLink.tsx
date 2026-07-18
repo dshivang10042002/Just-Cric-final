@@ -1,20 +1,22 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getYouTubeEmbedUrl } from "@/utils/getYouTubeEmbedUrl";
-import { Link2, Radio, Square, Trash2, Copy, Check } from "lucide-react";
+import { Link2, Radio, Square, Trash2, Copy, Check, Video } from "lucide-react";
 import { startYouTubeLive, stopYouTubeLive } from "@/lib/api/youtube-live.functions";
 import { VideoStreamEmbed } from "@/components/VideoStreamEmbed";
+import { useBrowserBroadcast } from "@/hooks/useBrowserBroadcast";
+import { useLiveOverlayEvents } from "@/components/live-overlay/useLiveOverlayEvents";
+import { buildCanvasOverlayBar, buildCanvasPopup } from "@/lib/live-overlay/buildCanvasOverlay";
+import type { CanvasOverlayBar, CanvasPopup } from "@/lib/live-overlay/canvasOverlay";
 import type { OverlayBall, OverlayInnings, OverlayMatch, OverlayMember } from "@/lib/live-overlay/types";
 
 type StreamStatus = "idle" | "live" | "ended";
+type GoLiveMode = "device" | "advanced" | "manual" | null;
 
 interface Props {
   matchId: string;
-  /** Accepted for backwards compatibility with callers that pass live match
-   *  context — currently unused here. Streaming this device's camera directly
-   *  (with a scorecard baked onto the video) needs an always-on ffmpeg relay
-   *  server, which isn't part of this deployment (Vercel + Supabase only, no
-   *  separately-hosted Node/Express process) — see stream-server/README.md. */
+  /** Live match context, used to bake the scorecard bar/popups onto the
+   *  outgoing video when streaming straight from this device's camera. */
   match?: OverlayMatch | null;
   innings?: OverlayInnings | null;
   balls?: OverlayBall[];
@@ -50,14 +52,48 @@ function CopyField({ label, value, mask }: { label: string; value: string; mask?
   );
 }
 
-export function AddStreamLink({ matchId }: Props) {
+/** Live preview of the camera feed being sent — bound directly to the MediaStream, no extra getUserMedia call. */
+function CameraPreview({ stream }: { stream: MediaStream }) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.srcObject = stream;
+  }, [stream]);
+  return (
+    <video
+      ref={videoRef}
+      autoPlay
+      muted
+      playsInline
+      className="aspect-video w-full rounded-lg border border-border bg-black object-cover"
+    />
+  );
+}
+
+export function AddStreamLink({ matchId, match, innings, balls, players }: Props) {
   const [url, setUrl]           = useState("");
   const [urlError, setUrlError] = useState<string | null>(null);
   const [status, setStatus]     = useState<StreamStatus>("idle");
   const [saving, setSaving]     = useState(false);
   const [manualMode, setManualMode] = useState(false);
+  const [advancedMode, setAdvancedMode] = useState(false);
   const [autoError, setAutoError] = useState<string | null>(null);
+  const [activeMode, setActiveMode] = useState<GoLiveMode>(null);
   const [liveInfo, setLiveInfo] = useState<{ rtmpUrl: string; streamKey: string; watchUrl: string; title: string } | null>(null);
+
+  const browserBroadcast = useBrowserBroadcast();
+
+  // ── Keep the scorecard bar/popup fed to the canvas compositor fresh every
+  //    frame, without recreating the getOverlay callback (and therefore the
+  //    whole broadcast) every time the score changes. ──
+  const { wicketEvent, newBatterEvent } = useLiveOverlayEvents(innings ?? null, balls ?? [], players ?? {});
+  const overlayDataRef = useRef<{ bar: CanvasOverlayBar | null; popup: CanvasPopup }>({ bar: null, popup: null });
+  useEffect(() => {
+    overlayDataRef.current = {
+      bar: match && innings ? buildCanvasOverlayBar(match, innings, balls ?? [], players ?? {}) : null,
+      popup: buildCanvasPopup(wicketEvent, newBatterEvent),
+    };
+  }, [match, innings, balls, players, wicketEvent, newBatterEvent]);
+  const getOverlay = useCallback(() => overlayDataRef.current, []);
 
   // Load current stream state on mount
   useEffect(() => {
@@ -74,8 +110,37 @@ export function AddStreamLink({ matchId }: Props) {
       });
   }, [matchId]);
 
-  // ── Creates the YouTube broadcast; hands back RTMP URL + Stream Key for
-  //    whatever streaming app the scorer uses (OBS/Streamlabs/Larix/etc).
+  // ── One-click: stream this device's camera (scorecard baked in) straight
+  //    to YouTube via the ingest relay — no OBS required. ──
+  const goLiveFromDevice = async () => {
+    setAutoError(null);
+    if (!import.meta.env.VITE_INGEST_WS_URL) {
+      setAutoError(
+        "Device streaming isn't set up on this deployment yet (the ingest relay isn't configured). Use \"Advanced: OBS / Streamlabs\" below instead.",
+      );
+      return;
+    }
+    setSaving(true);
+    try {
+      const result = await startYouTubeLive({ data: { matchId } });
+      setLiveInfo(result);
+      setUrl(result.watchUrl);
+      setActiveMode("device");
+      setStatus("live");
+      await browserBroadcast.start({
+        rtmpUrl: result.rtmpUrl,
+        streamKey: result.streamKey,
+        getOverlay,
+      });
+    } catch (e) {
+      setAutoError(e instanceof Error ? e.message : "Couldn't start the broadcast");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ── Advanced: creates the YouTube broadcast; hands back RTMP URL + Stream
+  //    Key for whatever streaming app the scorer uses (OBS/Streamlabs/Larix). ──
   const goLive = async () => {
     setAutoError(null);
     setSaving(true);
@@ -83,6 +148,7 @@ export function AddStreamLink({ matchId }: Props) {
       const result = await startYouTubeLive({ data: { matchId } });
       setLiveInfo(result);
       setUrl(result.watchUrl);
+      setActiveMode("advanced");
       setStatus("live");
     } catch (e) {
       setAutoError(e instanceof Error ? e.message : "Couldn't start the broadcast");
@@ -93,6 +159,7 @@ export function AddStreamLink({ matchId }: Props) {
 
   const endStreamAuto = async () => {
     setSaving(true);
+    browserBroadcast.stop();
     try {
       await stopYouTubeLive({ data: { matchId } });
     } catch (e) {
@@ -101,6 +168,7 @@ export function AddStreamLink({ matchId }: Props) {
       setSaving(false);
       setStatus("ended");
       setLiveInfo(null);
+      setActiveMode(null);
     }
   };
 
@@ -124,11 +192,13 @@ export function AddStreamLink({ matchId }: Props) {
       .eq("id", matchId);
     setSaving(false);
     if (error) { setUrlError(error.message); return; }
+    setActiveMode("manual");
     setStatus("live");
   };
 
   const endStream = async () => {
     if (liveInfo) return endStreamAuto();
+    browserBroadcast.stop();
     setSaving(true);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any)
@@ -137,10 +207,12 @@ export function AddStreamLink({ matchId }: Props) {
       .eq("id", matchId);
     setSaving(false);
     setStatus("ended");
+    setActiveMode(null);
   };
 
   const removeLink = async () => {
     setSaving(true);
+    browserBroadcast.stop();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any)
       .from("matches")
@@ -150,6 +222,7 @@ export function AddStreamLink({ matchId }: Props) {
     setUrl("");
     setStatus("idle");
     setLiveInfo(null);
+    setActiveMode(null);
   };
 
   return (
@@ -158,8 +231,41 @@ export function AddStreamLink({ matchId }: Props) {
         <span>🎥</span> Go Live
       </div>
 
-      {/* ── IDLE ── */}
-      {status === "idle" && !manualMode && (
+      {/* ── IDLE: pick a mode ── */}
+      {status === "idle" && !manualMode && !advancedMode && (
+        <div className="space-y-2">
+          <button
+            onClick={goLiveFromDevice}
+            disabled={saving || browserBroadcast.state === "starting"}
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-destructive px-4 py-2.5 text-sm font-bold text-white transition active:scale-95 disabled:opacity-50"
+          >
+            <Video className="h-4 w-4" />
+            {saving || browserBroadcast.state === "starting" ? "Starting broadcast…" : "Go Live From This Device 📷"}
+          </button>
+          <p className="text-[11px] text-muted-foreground">
+            Streams straight from this device's camera and mic — the live scorecard is baked onto the video
+            automatically. No extra apps needed.
+          </p>
+          {autoError && <p className="text-xs text-destructive">{autoError}</p>}
+
+          <div className="flex items-center justify-between pt-1">
+            <button
+              onClick={() => setAdvancedMode(true)}
+              className="text-[11px] font-semibold text-muted-foreground underline underline-offset-2"
+            >
+              Advanced: use OBS / Streamlabs instead
+            </button>
+            <button
+              onClick={() => setManualMode(true)}
+              className="text-[11px] font-semibold text-muted-foreground underline underline-offset-2"
+            >
+              Paste an existing link
+            </button>
+          </div>
+        </div>
+      )}
+
+      {status === "idle" && advancedMode && !manualMode && (
         <div className="space-y-2">
           <button
             onClick={goLive}
@@ -167,7 +273,7 @@ export function AddStreamLink({ matchId }: Props) {
             className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-destructive px-4 py-2.5 text-sm font-bold text-white transition active:scale-95 disabled:opacity-50"
           >
             <Radio className="h-4 w-4 animate-pulse" />
-            {saving ? "Starting broadcast…" : "Go Live 🔴"}
+            {saving ? "Starting broadcast…" : "Create Broadcast 🔴"}
           </button>
           {autoError && <p className="text-xs text-destructive">{autoError}</p>}
           <p className="text-[11px] text-muted-foreground">
@@ -175,12 +281,11 @@ export function AddStreamLink({ matchId }: Props) {
             RTMP URL + Stream Key to paste into your streaming app (OBS, Streamlabs, Larix, etc.) — the
             recording saves to your channel automatically once you end the stream.
           </p>
-
           <button
-            onClick={() => setManualMode(true)}
+            onClick={() => setAdvancedMode(false)}
             className="text-[11px] font-semibold text-muted-foreground underline underline-offset-2"
           >
-            Already streaming elsewhere? Paste an existing link instead
+            ← Back to Go Live
           </button>
         </div>
       )}
@@ -222,13 +327,26 @@ export function AddStreamLink({ matchId }: Props) {
         <div className="space-y-3">
           <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm text-destructive font-semibold">
             <Radio className="h-4 w-4 animate-pulse" />
-            {liveInfo ? `Live: "${liveInfo.title}"` : "Stream linked! Viewers can see it."}
+            {activeMode === "device" && browserBroadcast.state === "starting" && "Connecting camera…"}
+            {activeMode === "device" && browserBroadcast.state === "live" && `Live from this device: "${liveInfo?.title}"`}
+            {activeMode === "device" && browserBroadcast.state === "error" && "Camera stream dropped — see below"}
+            {activeMode !== "device" && (liveInfo ? `Live: "${liveInfo.title}"` : "Stream linked! Viewers can see it.")}
           </div>
 
-          {/* Preview right here — no need to leave this page to check it's working.
-              YouTube can take a little while to show video after your streaming
-              app connects, even once this panel says the broadcast was created. */}
-          <VideoStreamEmbed matchId={matchId} initialStreamUrl={url || liveInfo?.watchUrl || null} initialStatus="live" />
+          {activeMode === "device" && browserBroadcast.state === "error" && (
+            <p className="text-xs text-destructive">
+              {browserBroadcast.error} The YouTube broadcast is still live — you can paste the RTMP URL + Stream
+              Key below into OBS/Streamlabs to keep streaming without restarting.
+            </p>
+          )}
+
+          {/* Camera preview when streaming from this device; otherwise the normal YouTube embed. */}
+          {activeMode === "device" && browserBroadcast.cameraStream ? (
+            <CameraPreview stream={browserBroadcast.cameraStream} />
+          ) : (
+            <VideoStreamEmbed matchId={matchId} initialStreamUrl={url || liveInfo?.watchUrl || null} initialStatus="live" />
+          )}
+
           {(liveInfo?.watchUrl || url) && (
             <a
               href={liveInfo?.watchUrl || url}
@@ -242,13 +360,11 @@ export function AddStreamLink({ matchId }: Props) {
 
           {liveInfo && (
             <div className="space-y-2 rounded-lg border border-border bg-secondary/40 p-3">
-              <p className="text-[11px] font-semibold text-muted-foreground">Paste these into your streaming app</p>
+              <p className="text-[11px] font-semibold text-muted-foreground">
+                {activeMode === "device" ? "Backup — paste into OBS if this device's stream drops" : "Paste these into your streaming app"}
+              </p>
               <CopyField label="RTMP Server URL" value={liveInfo.rtmpUrl} />
               <CopyField label="Stream Key" value={liveInfo.streamKey} mask />
-              <p className="text-[11px] text-muted-foreground">
-                Once your streaming app (OBS, Streamlabs, Larix, etc.) connects with these, you'll go live on
-                YouTube automatically.
-              </p>
             </div>
           )}
 
